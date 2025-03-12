@@ -1,34 +1,10 @@
-# electron-demo
-
-An Electron application with Vue
-
-## Recommended IDE Setup
-
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar)
-
-## Project Setup
-
-### Install
-
-```bash
-$ npm install
-```
-
-### Development
-
-```bash
-$ npm run dev
-```
-
-### Build
-
-```bash
-# For windows
-$ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
-```
+## BiliBiliDownloader-electron
+使用electron 构建的bilibili下载器
+## 实现功能
+- [x] 解析视频链接
+- [x] b站扫码登录
+- [ ] 加入 aria2c 实现视频下载
+- [ ] 加入 ffmpeg 实现视频合并
+## 注意
+- 本项目仅供学习交流使用，请勿用于商业用途
+- 不承担任何法律责任
