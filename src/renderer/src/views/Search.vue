@@ -46,6 +46,7 @@
             :disabled="selectedPages.length === 0"
             class="next-step"
             type="primary"
+            @click="getDownloadInfo"
           >
             下一步
           </el-button>
@@ -57,6 +58,7 @@
 
 <script>
 import { ArrowDown } from "@element-plus/icons-vue";
+import { useVideoStore } from '../stores/videoStore';
 
 export default {
   components: {
@@ -174,12 +176,51 @@ export default {
     // 切换折叠状态
     toggleCollapse() {
       this.isCollapsed = !this.isCollapsed;
+    },
+
+    // 获取下载信息
+    getDownloadInfo() {
+      if (this.selectedPages.length === 0) {
+        this.$notify.error({
+          title: "请选择分集",
+          message: "请选择需要下载的分集",
+          duration: 2000
+        });
+      } else {
+        // 筛选出选中分P的详细信息
+        const selectedPageDetails = this.pages
+          .filter(page => this.selectedPages.includes(page.cid))
+          .map(page => ({
+            cid: page.cid,
+            title: page.part,
+          }));
+
+        // 使用Pinia存储
+        const videoStore = useVideoStore();
+        videoStore.setAllVideoData({
+          selectedPages: this.selectedPages,
+          avid: this.avid,
+          videoName: this.videoName,
+          bgUrl: this.bgUrl,
+          pageDetails: selectedPageDetails
+        });
+
+        // 导航到下一步或显示成功提示
+        this.$notify.success({
+          title: "准备完成",
+          message: `已装载 ${this.selectedPages.length} 个视频分P`,
+          duration: 2000
+        });
+
+        this.$router.push('/download');
+      }
     }
   }
 };
 </script>
 
 <style scoped>
+/* 保持原有样式不变 */
 .search {
   padding: 0 20px;
   display: flex;
