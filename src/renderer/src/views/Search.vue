@@ -236,7 +236,7 @@ export default {
           });
 
           // 可选：导航到下一步
-          // this.$router.push('/download');
+          this.$router.push('/download');
         } catch (error) {
           this.$notify.error({
             title: "保存失败",
