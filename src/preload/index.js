@@ -27,7 +27,31 @@ const api = {
   saveCookies: () => ipcRenderer.invoke('save-cookies'),
   clearCookies: () => ipcRenderer.invoke('clear-cookies'),
   getCookies: () => ipcRenderer.invoke('get-cookies'),
-  isLoggedIn: () => ipcRenderer.invoke('is-logged-in')
+  isLoggedIn: () => ipcRenderer.invoke('is-logged-in'),
+
+  // 添加数据存储相关API
+  storage: {
+    // 下载信息相关
+    getDownloadsInfo: () => ipcRenderer.invoke('get-downloads-info'),
+    saveDownloadInfo: (downloadInfo) => ipcRenderer.invoke('save-download-info', downloadInfo),
+    removeDownloadInfo: (avid) => ipcRenderer.invoke('remove-download-info', avid),
+    updateDownloadInfoPage: (avid, cid, updateData) => ipcRenderer.invoke('update-download-info-page', avid, cid, updateData),
+    removeDownloadInfoPage: (avid, cid) => ipcRenderer.invoke('remove-download-info-page', avid, cid),
+
+    // 下载中任务相关
+    getDownloadingTasks: () => ipcRenderer.invoke('get-downloading-tasks'),
+    addDownloadingTask: (task) => ipcRenderer.invoke('add-downloading-task', task),
+    updateDownloadingTask: (avid, cid, updateData) => ipcRenderer.invoke('update-downloading-task', avid, cid, updateData),
+    removeDownloadingTask: (avid, cid) => ipcRenderer.invoke('remove-downloading-task', avid, cid),
+
+    // 已完成任务相关
+    getCompletedTasks: () => ipcRenderer.invoke('get-completed-tasks'),
+    addCompletedTask: (task) => ipcRenderer.invoke('add-completed-task', task),
+    removeCompletedTask: (avid, cid) => ipcRenderer.invoke('remove-completed-task', avid, cid),
+
+    // 任务状态转换
+    moveTaskToCompleted: (avid, cid, additionalData) => ipcRenderer.invoke('move-task-to-completed', avid, cid, additionalData)
+  }
 }
 
 // 定义窗口控制API

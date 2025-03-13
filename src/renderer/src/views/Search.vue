@@ -58,7 +58,6 @@
 
 <script>
 import { ArrowDown } from "@element-plus/icons-vue";
-import { useVideoStore } from '../stores/videoStore';
 
 export default {
   components: {
@@ -76,7 +75,25 @@ export default {
       selectedPages: [],  // 选中的分集CID
       isCollapsed: false, // 是否折叠
       isAllSelected: false, // 是否全选
-      isIndeterminate: false // 是否部分选中
+      isIndeterminate: false, // 是否部分选中
+      audioIds: { // 音频ID对应码率
+        "30280": "192K",
+        "30216": "64K",
+        "30232": "132K"
+      },
+      qualities: { // 视频清晰度
+        "116": "1080P60",
+        "112": "1080P+",
+        "80": "1080P",
+        "74": "720P60",
+        "64": "720P",
+        "32": "480P",
+        "16": "360P"
+      },
+      codecNames: { // 视频码率对应名称
+        "7": "AVC",
+        "12": "HEVC"
+      }
     };
   },
   watch: {
@@ -179,7 +196,7 @@ export default {
     },
 
     // 获取下载信息
-    getDownloadInfo() {
+    async getDownloadInfo() {
       if (this.selectedPages.length === 0) {
         this.$notify.error({
           title: "请选择分集",
@@ -187,34 +204,74 @@ export default {
           duration: 2000
         });
       } else {
-        // 筛选出选中分P的详细信息
-        const selectedPageDetails = this.pages
-          .filter(page => this.selectedPages.includes(page.cid))
-          .map(page => ({
-            cid: page.cid,
-            title: page.part,
-          }));
-
-        // 使用Pinia存储
-        const videoStore = useVideoStore();
-        videoStore.setAllVideoData({
-          selectedPages: this.selectedPages,
+        const downloadInfo = {
           avid: this.avid,
           videoName: this.videoName,
-          bgUrl: this.bgUrl,
-          pageDetails: selectedPageDetails
-        });
+          isCompilations: this.pages.length > 1,
+          pages: [],
+        }
+        for (let i = 0; i < this.selectedPages.length; i++) {
+          const temp = this.pages.find(page => page.cid === this.selectedPages[i]);
+          const pageData = {
+            cid: temp.cid,
+            page: temp.page,
+            title: temp.part,
+            pic: temp.first_frame,
+            videoData: [],
+            audioData: []
+          }
+          const { VideoData, AudioData } = await this.getDownloadUrls(pageData.cid);
+          pageData.videoData = VideoData;
+          pageData.audioData = AudioData;
+          downloadInfo.pages.push(pageData);
+        }
 
-        // 导航到下一步或显示成功提示
-        this.$notify.success({
-          title: "准备完成",
-          message: `已装载 ${this.selectedPages.length} 个视频分P`,
-          duration: 2000
-        });
+        // 使用新的API保存下载信息
+        try {
+          await window.api.storage.saveDownloadInfo(downloadInfo);
+          this.$notify.success({
+            title: "准备完成",
+            message: `已装载 ${downloadInfo.pages.length} 个视频分P，并已保存下载信息`,
+            duration: 2000
+          });
 
-        this.$router.push('/download');
+          // 可选：导航到下一步
+          // this.$router.push('/download');
+        } catch (error) {
+          this.$notify.error({
+            title: "保存失败",
+            message: `下载信息保存失败: ${error.message}`,
+            duration: 2000
+          });
+        }
       }
-    }
+    },
+
+    // 获取下载链接
+    async getDownloadUrls(cid) {
+      const res = await window.api.http.get(`https://api.bilibili.com/x/player/playurl?avid=${this.avid}&cid=${cid}&fnval=16`);
+      const res_data = res.data.data;
+      const VideoData = [];
+      const AudioData = [];
+      for (let i = 0; i < res_data.dash.video.length; i++) {
+        const video = {
+          label: `${this.qualities[res_data.dash.video[i].id]} | ${this.codecNames[res_data.dash.video[i].codecid]}`,
+          url: res_data.dash.video[i].baseUrl
+        }
+        VideoData.push(video);
+      }
+      for (let i = 0; i < res_data.dash.audio.length; i++) {
+        const audio = {
+          label: this.audioIds[res_data.dash.audio[i].id],
+          url: res_data.dash.audio[i].baseUrl
+        }
+        AudioData.push(audio);
+      }
+      return {
+        VideoData,
+        AudioData
+      }
+    },
   }
 };
 </script>

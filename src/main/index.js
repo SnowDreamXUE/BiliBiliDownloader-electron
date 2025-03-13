@@ -11,6 +11,22 @@ import {
   getCookieString,
   isLoggedIn, setCookies
 } from "./cookieSet";
+import {
+  getDownloadsInfo,
+  saveDownloadInfo,
+  removeDownloadInfo,
+  updateDownloadInfoPage,
+  removeDownloadInfoPage,
+  getDownloadingTasks,
+  addDownloadingTask,
+  updateDownloadingTask,
+  removeDownloadingTask,
+  getCompletedTasks,
+  addCompletedTask,
+  removeCompletedTask,
+  moveTaskToCompleted
+} from './dataStorage';
+
 
 function createWindow() {
   // Create the browser window.
@@ -134,6 +150,36 @@ ipcMain.handle("send-http-request", async (event, options) => {
   }
 });
 
+// 数据存储相关
+function registerDataStorageHandlers() {
+  // 下载信息相关
+  ipcMain.handle('get-downloads-info', getDownloadsInfo);
+  ipcMain.handle('save-download-info', (event, downloadInfo) => saveDownloadInfo(downloadInfo));
+  ipcMain.handle('remove-download-info', (event, avid) => removeDownloadInfo(avid));
+  ipcMain.handle('update-download-info-page', (event, avid, cid, updateData) =>
+    updateDownloadInfoPage(avid, cid, updateData));
+  ipcMain.handle('remove-download-info-page', (event, avid, cid) =>
+    removeDownloadInfoPage(avid, cid));
+
+  // 下载中任务相关
+  ipcMain.handle('get-downloading-tasks', getDownloadingTasks);
+  ipcMain.handle('add-downloading-task', (event, task) => addDownloadingTask(task));
+  ipcMain.handle('update-downloading-task', (event, avid, cid, updateData) =>
+    updateDownloadingTask(avid, cid, updateData));
+  ipcMain.handle('remove-downloading-task', (event, avid, cid) =>
+    removeDownloadingTask(avid, cid));
+
+  // 已完成任务相关
+  ipcMain.handle('get-completed-tasks', getCompletedTasks);
+  ipcMain.handle('add-completed-task', (event, task) => addCompletedTask(task));
+  ipcMain.handle('remove-completed-task', (event, avid, cid) =>
+    removeCompletedTask(avid, cid));
+
+  // 任务状态转换
+  ipcMain.handle('move-task-to-completed', (event, avid, cid, additionalData) =>
+    moveTaskToCompleted(avid, cid, additionalData));
+}
+
 // 在适当位置添加
 ipcMain.handle("set-cookies", async (event, cookieData) => {
   return await setCookies(cookieData);
@@ -156,6 +202,8 @@ app.whenReady().then(async () => {
   ipcMain.handle("get-cookies", getCurrentCookies);
   ipcMain.handle("is-logged-in", isLoggedIn);
 
+  // 注册数据存储相关的处理器
+  registerDataStorageHandlers();
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -184,6 +232,3 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

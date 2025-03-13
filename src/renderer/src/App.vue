@@ -4,9 +4,10 @@
     <el-container class="app-container">
       <el-aside>
         <el-menu
-          :default-active="route.path"
+          :default-active="activeMenu"
           background-color="#f1f1f1"
           router
+          class="side-menu"
         >
           <div class="user-avatar">
             <img alt="avatar" src="./assets/avatar-default.png" />
@@ -39,8 +40,12 @@
 import { useRoute } from "vue-router";
 import { Search, User, Download } from "@element-plus/icons-vue";
 import TitleBar from "./components/TitleBar.vue";
+import { computed } from "vue";
 
 const route = useRoute();
+const activeMenu = computed(() => {
+  return "/" + route.path.split("/")[1];
+});
 </script>
 
 <style scoped>
@@ -62,7 +67,7 @@ const route = useRoute();
   margin: 0;
 }
 
-.el-menu {
+.side-menu {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -72,7 +77,7 @@ const route = useRoute();
   height: 100%;
 }
 
-.el-menu-item {
+.side-menu .el-menu-item {
   display: flex;
   width: 40px;
   height: 40px;
@@ -92,12 +97,12 @@ const route = useRoute();
   }
 }
 
-.el-menu-item.is-active {
+.side-menu .el-menu-item.is-active {
   border-radius: 30%;
   background: rgb(214, 214, 214);
 }
 
-.el-menu-item:hover {
+.side-menu .el-menu-item:hover {
   border-radius: 30%;
   background: rgb(214, 214, 214);
 }
