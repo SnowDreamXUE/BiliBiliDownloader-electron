@@ -51,6 +51,21 @@ const api = {
 
     // 任务状态转换
     moveTaskToCompleted: (avid, cid, additionalData) => ipcRenderer.invoke('move-task-to-completed', avid, cid, additionalData)
+  },
+
+  // 添加下载相关API
+  download: {
+    selectDirectory: () => ipcRenderer.invoke('select-download-directory'),
+    getDirectory: () => ipcRenderer.invoke('get-download-directory'),
+    startDownload: (downloadItem) => ipcRenderer.invoke('start-download', downloadItem),
+    cancelDownload: (avid, cid) => ipcRenderer.invoke('cancel-download', avid, cid),
+    batchDownload: (items) => ipcRenderer.invoke('batch-download', items)
+  },
+
+  // 添加文件系统操作API
+  file: {
+    openPath: (path) => ipcRenderer.invoke('open-path', path),
+    showItemInFolder: (path) => ipcRenderer.invoke('show-item-in-folder', path)
   }
 }
 
@@ -69,6 +84,26 @@ const windowAPI = {
   }
 }
 
+// 安全地暴露 ipcRenderer 的部分功能
+const ipcRendererAPI = {
+  invoke: (channel, ...args) => {
+    // 白名单通道
+    const validChannels = [
+      'get-download-directory',
+      'select-download-directory',
+      'start-download',
+      'cancel-download',
+      'batch-download'
+    ];
+
+    if (validChannels.includes(channel)) {
+      return ipcRenderer.invoke(channel, ...args);
+    }
+
+    throw new Error(`通道 "${channel}" 不在白名单中`);
+  }
+}
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', {
@@ -76,6 +111,7 @@ if (process.contextIsolated) {
       window: windowAPI
     })
     contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('ipcRenderer', ipcRendererAPI)
   } catch (error) {
     console.error(error)
   }
@@ -85,4 +121,5 @@ if (process.contextIsolated) {
     window: windowAPI
   }
   window.api = api
+  window.ipcRenderer = ipcRendererAPI
 }

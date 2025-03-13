@@ -26,6 +26,7 @@ import {
   removeCompletedTask,
   moveTaskToCompleted
 } from './dataStorage';
+import { initDownloadManager } from './downloadManager';
 
 
 function createWindow() {
@@ -182,7 +183,33 @@ ipcMain.handle("set-cookies", async (event, cookieData) => {
   return await setCookies(cookieData);
 });
 
+// 打开文件
+ipcMain.handle('open-path', async (event, path) => {
+  try {
+    const result = await shell.openPath(path);
+    return { success: result === '' }; // openPath成功时返回空字符串
+  } catch (error) {
+    console.error('打开文件失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 在文件管理器中显示文件
+ipcMain.handle('show-item-in-folder', async (event, path) => {
+  try {
+    shell.showItemInFolder(path);
+    return { success: true };
+  } catch (error) {
+    console.error('显示文件失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 app.whenReady().then(async () => {
+
+  // 设置系统环境变量，解决中文乱码问题
+  process.env.LANG = 'zh_CN.UTF-8';
+
   // 加载保存的cookies
   await loadCookiesFromFile();
   // 拦截修改请求头
@@ -198,6 +225,9 @@ app.whenReady().then(async () => {
 
   // 注册数据存储相关的处理器
   registerDataStorageHandlers();
+
+  // 初始化下载管理器
+  initDownloadManager();
 
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);

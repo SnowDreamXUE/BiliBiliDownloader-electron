@@ -148,15 +148,27 @@ export async function addDownloadingTask(task) {
   // 防止重复添加
   const existingIndex = tasks.findIndex(t => t.avid === task.avid && t.cid === task.cid);
 
+  // 确保保存合集信息
+  const taskWithDetails = {
+    ...task,
+    isCompilations: task.isCompilations || false,  // 确保合集标志存在
+    videoName: task.videoName || '',               // 确保合集名称存在
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    progress: task.progress || 0
+  };
+
   if (existingIndex >= 0) {
-    tasks[existingIndex] = { ...task, updatedAt: new Date().toISOString() };
+    // 更新任务时保留原有合集信息
+    const existingTask = tasks[existingIndex];
+    tasks[existingIndex] = {
+      ...taskWithDetails,
+      isCompilations: taskWithDetails.isCompilations || existingTask.isCompilations,
+      videoName: taskWithDetails.videoName || existingTask.videoName,
+      updatedAt: new Date().toISOString()
+    };
   } else {
-    tasks.push({
-      ...task,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      progress: 0
-    });
+    tasks.push(taskWithDetails);
   }
 
   await writeJsonFile(DOWNLOADING_FILE, tasks);
