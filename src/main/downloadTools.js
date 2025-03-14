@@ -10,10 +10,16 @@ let basePath;
 
 if (isDev) {
   // 开发环境
-  basePath = path.resolve(process.cwd(), 'resources/tools');
+  basePath = path.resolve(process.cwd(), 'resources');
 } else {
-  // 生产环境
-  basePath = path.join(process.resourcesPath, 'tools');
+  // 生产环境 - 处理app.asar.unpacked路径
+  // 尝试在app.asar.unpacked目录查找
+  basePath = path.join(process.resourcesPath, 'app.asar.unpacked', 'resources');
+
+  // 如果该路径不存在，回退到默认resources路径
+  if (!fs.existsSync(basePath)) {
+    basePath = path.join(process.resourcesPath, 'resources');
+  }
 }
 
 const ARIA2C_PATH = path.join(basePath, 'aria2c.exe');
