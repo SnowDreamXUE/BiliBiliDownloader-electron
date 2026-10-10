@@ -1,23 +1,38 @@
 <template>
-  <div class="login">
-    <el-card>
-      <div class="user-info" v-if="isLoggedIn">
-        <el-avatar :size="64" :src="face"></el-avatar>
-        <div class="user-name">{{ uname }}</div>
-        <el-button type="danger" @click="logout">退出登录</el-button>
+  <div class="login-page">
+    <header class="login-heading">
+      <div class="page-label"><span></span>账号与权限</div>
+      <h1>账号登录</h1>
+      <p>登录哔哩哔哩账号后，可以访问账号授权的视频内容。</p>
+    </header>
+
+    <el-card class="login-card" shadow="never">
+      <div v-if="isLoggedIn" class="user-info">
+        <el-avatar :size="58" :src="face"></el-avatar>
+        <div class="user-copy">
+          <span>当前已登录</span>
+          <strong>{{ uname }}</strong>
+        </div>
+        <el-button @click="logout">退出登录</el-button>
       </div>
-      <div class="login-btns" v-else>
-        <el-button type="primary" @click="login_url" :loading="isGenerating">
-          {{ isGenerating ? '生成中...' : '生成登录二维码' }}
-        </el-button>
-        <el-button @click="stopCheck" :disabled="!pollingIntervalId">终止轮询</el-button>
+      <div v-else class="login-controls">
+        <div>
+          <h2>使用手机扫码</h2>
+          <p>打开哔哩哔哩客户端，扫描二维码完成授权。</p>
+        </div>
+        <div class="login-btns">
+          <el-button type="primary" @click="login_url" :loading="isGenerating">
+            {{ isGenerating ? '生成中...' : '生成登录二维码' }}
+          </el-button>
+          <el-button @click="stopCheck" :disabled="!pollingIntervalId">停止检查</el-button>
+        </div>
+      </div>
+
+      <div class="qrcode-container" v-if="showQrcode">
+        <canvas id="qrcode"></canvas>
+        <div class="qrcode-status">{{ qrcodeStatus }}</div>
       </div>
     </el-card>
-
-    <div class="qrcode-container" v-if="showQrcode">
-      <canvas id="qrcode"></canvas>
-      <div class="qrcode-status">{{ qrcodeStatus }}</div>
-    </div>
   </div>
 </template>
 
@@ -302,55 +317,147 @@ export default {
 </script>
 
 <style scoped>
-.login {
+.login-page {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  margin-top: 100px;
+  width: min(100%, 820px);
+  min-height: 100%;
+  padding: 54px 34px;
+  margin: 0 auto;
 }
 
-.el-card {
-  width: 600px;
-  margin-bottom: 20px;
+.page-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #687585;
+  font-size: 11px;
+}
+
+.page-label span {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: #fb7299;
+  transform: rotate(45deg);
+}
+
+.login-heading h1 {
+  margin: 0;
+  color: #1e2a37;
+  font-size: 28px;
+  font-weight: 680;
+  letter-spacing: -0.035em;
+}
+
+.login-heading p {
+  margin: 9px 0 24px;
+  color: #798594;
+  font-size: 12px;
+}
+
+.login-card {
+  border: 1px solid #e3e8ee;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.login-card :deep(.el-card__body) {
+  padding: 24px;
+}
+
+.login-controls {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 24px;
+  min-height: 92px;
+}
+
+.login-controls h2 {
+  margin: 0;
+  color: #2b3745;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.login-controls p {
+  margin: 8px 0 0;
+  color: #84909d;
+  font-size: 11px;
 }
 
 .login-btns {
   display: flex;
-  justify-content: space-around;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.user-info {
+  display: flex;
   align-items: center;
-  width: 100%;
+  gap: 15px;
+  min-height: 72px;
+}
+
+.user-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.user-copy span {
+  color: #8793a0;
+  font-size: 11px;
+}
+
+.user-copy strong {
+  overflow: hidden;
+  color: #293645;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .qrcode-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 20px;
+  width: fit-content;
+  padding: 18px 22px 14px;
+  margin: 22px auto 0;
+  border: 1px solid #edf0f3;
+  border-radius: 10px;
+  background: #fafbfc;
 }
 
 .qrcode-status {
-  margin-top: 10px;
-  color: #666;
-  font-size: 14px;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 10px;
-}
-
-.user-name {
-  font-size: 18px;
-  margin: 0 20px;
-  flex-grow: 1;
-  text-align: left;
+  margin-top: 11px;
+  color: #6f7b89;
+  font-size: 11px;
 }
 
 #qrcode {
   display: block;
   margin: 0 auto;
+  border-radius: 5px;
+}
+
+@media (max-width: 760px) {
+  .login-page {
+    padding: 34px 22px;
+  }
+
+  .login-controls {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .login-btns {
+    flex-wrap: wrap;
+  }
 }
 </style>

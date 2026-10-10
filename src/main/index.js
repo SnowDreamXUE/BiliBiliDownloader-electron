@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, session } from "electron";
+import { app, shell, BrowserWindow, ipcMain, session, screen } from "electron";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
@@ -30,12 +30,30 @@ import { initDownloadManager } from './downloadManager';
 
 
 function createWindow() {
+  const { width: workAreaWidth, height: workAreaHeight } = screen.getPrimaryDisplay().workAreaSize;
+  const minWidth = Math.min(1100, workAreaWidth);
+  const minHeight = Math.min(700, workAreaHeight);
+  const width = Math.min(
+    1360,
+    workAreaWidth,
+    Math.max(minWidth, Math.round(workAreaWidth * 0.84))
+  );
+  const height = Math.min(
+    900,
+    workAreaHeight,
+    Math.max(minHeight, Math.round(workAreaHeight * 0.86))
+  );
+
   const mainWindow = new BrowserWindow({
-    minWidth: 1100,
-    minHeight: 700,
+    width,
+    height,
+    minWidth,
+    minHeight,
+    center: true,
     show: false,
     autoHideMenuBar: true,
     icon: icon,
+    backgroundColor: "#f2f4f7",
     frame: false,
     titleBarStyle: "hidden",
     webPreferences: {

@@ -1,28 +1,30 @@
 <template>
-  <div
+  <header
     class="titlebar"
     :class="{ 'is-maximized': isMaximized }"
-    data-platform="darwin"
+    @dblclick="handleDoubleClick"
   >
-    <el-row :gutter="0" class="titlebar-row">
-      <el-col :span="4" class="left-col"></el-col>
-      <el-col :span="16" class="title-col">
-        <div class="window-title">{{ title }}</div>
-      </el-col>
-      <el-col :span="4" class="control-col">
-        <div class="window-controls" @dblclick.stop>
-          <!-- 按钮顺序调整为：最小化、最大化、关闭 -->
-          <button class="control-button minimize" @click="minimize"></button>
-          <button
-            class="control-button maximize"
-            :class="{ restored: isMaximized }"
-            @click="toggleMaximize"
-          ></button>
-          <button class="control-button close" @click="close"></button>
-        </div>
-      </el-col>
-    </el-row>
-  </div>
+    <div class="titlebar-brand">
+      <span class="titlebar-mark" aria-hidden="true">B</span>
+      <span class="window-title">{{ title }}</span>
+    </div>
+    <div class="window-controls" @dblclick.stop>
+      <button class="control-button minimize" type="button" aria-label="最小化" @click="minimize">
+        <span class="minimize-glyph" aria-hidden="true"></span>
+      </button>
+      <button
+        class="control-button maximize"
+        type="button"
+        :aria-label="isMaximized ? '还原窗口' : '最大化'"
+        @click="toggleMaximize"
+      >
+        <span class="maximize-glyph" :class="{ restored: isMaximized }" aria-hidden="true"></span>
+      </button>
+      <button class="control-button close" type="button" aria-label="关闭" @click="close">
+        <span class="close-glyph" aria-hidden="true"></span>
+      </button>
+    </div>
+  </header>
 </template>
 
 <script>
@@ -36,35 +38,27 @@ export default {
   },
   data() {
     return {
-      platform: window.api.platform, // 仍然获取平台信息，但界面统一使用Mac风格
       isMaximized: false
     }
   },
   mounted() {
     window.electron.window.onMaximizeChange((isMaximized) => {
       this.isMaximized = isMaximized
-    })
-
-    // 添加双击标题栏最大化/还原的功能
-    this.$el.addEventListener('dblclick', this.handleDoubleClick)
-  },
-  beforeUnmount() {
-    this.$el.removeEventListener('dblclick', this.handleDoubleClick)
+    });
   },
   methods: {
     minimize() {
-      window.electron.window.minimize()
+      window.electron.window.minimize();
     },
     toggleMaximize() {
-      window.electron.window.maximize()
+      window.electron.window.maximize();
     },
     close() {
-      window.electron.window.close()
+      window.electron.window.close();
     },
     handleDoubleClick(event) {
-      // 确保双击的是标题栏区域，而不是控制按钮
       if (!event.target.closest('.window-controls')) {
-        this.toggleMaximize()
+        this.toggleMaximize();
       }
     }
   }
@@ -73,84 +67,121 @@ export default {
 
 <style scoped>
 .titlebar {
-  height: 30px;
-  background-color: #f1f1f1;
+  display: flex;
+  flex: 0 0 38px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 38px;
+  padding-left: 15px;
+  color: #d7e0e9;
+  background: #172433;
   user-select: none;
   -webkit-app-region: drag;
-  width: 100%;
 }
 
-.titlebar-row {
-  height: 100%;
-  margin: 0 !important;
-}
-
-.control-col, .title-col, .left-col {
-  height: 100%;
+.titlebar-brand {
   display: flex;
   align-items: center;
+  gap: 9px;
+  min-width: 0;
 }
 
-.title-col {
-  justify-content: center;
+.titlebar-mark {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 6px 6px 6px 2px;
+  color: #fff;
+  background: #fb7299;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -1px;
 }
 
 .window-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
-  white-space: nowrap;
   overflow: hidden;
+  color: #d7e0e9;
+  font-size: 12px;
+  font-weight: 550;
   text-overflow: ellipsis;
-  line-height: 30px;
+  white-space: nowrap;
 }
 
 .window-controls {
   display: flex;
-  align-items: center;
-  justify-content: flex-end; /* 按钮靠右对齐 */
-  -webkit-app-region: no-drag;
   height: 100%;
-  padding-right: 12px;
-}
-
-.control-col {
-  justify-content: flex-end;
+  -webkit-app-region: no-drag;
 }
 
 .control-button {
-  width: 16px; /* 增大按钮尺寸 */
-  height: 16px;
-  margin: 0 6px;
-  border-radius: 50%;
-  border: none;
-  cursor: pointer;
   position: relative;
-  transition: all 0.2s ease;
+  display: grid;
+  width: 44px;
+  height: 38px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  color: #c1cbd5;
+  background: transparent;
+  cursor: pointer;
 }
 
-/* macOS 风格按钮颜色 */
-.control-button.minimize {
-  background-color: #ffbd2e;
-}
-.control-button.minimize:hover {
-  background-color: #ffcd45;
-  transform: scale(1.1);
+.control-button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.09);
 }
 
-.control-button.maximize {
-  background-color: #28c940;
-}
-.control-button.maximize:hover {
-  background-color: #3dd958;
-  transform: scale(1.1);
-}
-
-.control-button.close {
-  background-color: #ff5f57;
-}
 .control-button.close:hover {
-  background-color: #ff7b72;
-  transform: scale(1.1);
+  background: #d94e68;
+}
+
+.minimize-glyph {
+  width: 10px;
+  height: 1px;
+  background: currentColor;
+}
+
+.maximize-glyph {
+  width: 9px;
+  height: 8px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+}
+
+.maximize-glyph.restored {
+  position: relative;
+  margin: 2px 0 0 -2px;
+}
+
+.maximize-glyph.restored::before {
+  position: absolute;
+  top: -4px;
+  left: 3px;
+  width: 7px;
+  height: 6px;
+  border: 1px solid currentColor;
+  border-bottom: 0;
+  content: "";
+}
+
+.close-glyph::before,
+.close-glyph::after {
+  position: absolute;
+  top: 18px;
+  left: 17px;
+  width: 11px;
+  height: 1px;
+  background: currentColor;
+  content: "";
+}
+
+.close-glyph::before {
+  transform: rotate(45deg);
+}
+
+.close-glyph::after {
+  transform: rotate(-45deg);
 }
 </style>

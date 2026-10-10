@@ -1,79 +1,81 @@
 <template>
-  <div class="download-wrapper">
-    <div v-if="downloadInfo.length === 0" class="no-data">
-      <div>啥也没有</div>
-      <div>no-data</div>
-    </div>
-    <div v-else class="download-list">
+  <div class="waiting-view">
+    <header class="waiting-toolbar">
+      <div class="waiting-title">
+        <h2>待下载列表</h2>
+        <span>选择保存位置与媒体质量</span>
+      </div>
       <div class="download-action">
-        <el-button
-          type="primary"
-          @click="selectDownloadPath"
-        >
-          {{ downloadPath || "请选择下载路径" }}
+        <el-button class="path-button" @click="selectDownloadPath">
+          <el-icon><FolderOpened /></el-icon>
+          <span>{{ downloadPath || "选择保存位置" }}</span>
         </el-button>
-        <el-button type="primary" @click="downloadAll">全部下载</el-button>
-        <el-button @click="clearAll">清空</el-button>
+        <el-button v-if="downloadInfo.length" type="primary" @click="downloadAll">全部下载</el-button>
+        <el-button v-if="downloadInfo.length" class="clear-button" @click="clearAll">清空</el-button>
       </div>
-      <div v-if="downloadPath" class="download-path">
-        <span>下载路径: {{ downloadPath }}</span>
-      </div>
-      <div class="download-info">
-        <!-- 遍历每个视频的页面 -->
-        <div v-for="(video, videoIndex) in downloadInfo" :key="'video-'+videoIndex" class="download-page">
-          <div v-for="item in video.pages" :key="item.cid" class="download-item">
-            <div class="video-pic">
-              <img :src="item.pic" alt="封面" />
-            </div>
-            <div class="video-info">
-              <div class="download-item-top">
-                <div class="video-title">{{ item.title }}</div>
-                <div class="video-action">
-                  <el-button size="small" type="primary" @click="downloadCover(item)">
-                    封面
-                  </el-button>
-                  <el-button size="small" type="primary" @click="downloadAudio(item)">
-                    音频
-                  </el-button>
-                  <el-button size="small" type="primary" @click="downloadVideo(item)">
-                    视频
-                  </el-button>
-                </div>
-              </div>
-              <div class="video-select">
-                <div class="audio-quality">
-                  <div class="select-span">音质</div>
-                  <el-select
-                    v-model="selectedAudio[item.cid]"
-                    class="select-quality"
-                    placeholder="选择音频码率"
-                    size="small"
-                  >
-                    <el-option
-                      v-for="(audio, index) in item.audioData"
-                      :key="'audio-'+item.cid+'-'+index"
-                      :label="audio.label"
-                      :value="audio.url"
-                    ></el-option>
-                  </el-select>
-                </div>
+    </header>
 
-                <div class="video-quality">
-                  <div class="select-span">画质</div>
-                  <el-select
-                    v-model="selectedVideo[item.cid]"
-                    class="select-quality"
-                    placeholder="选择清晰度"
-                    size="small"
-                  >
-                    <el-option
-                      v-for="(video, index) in item.videoData"
-                      :key="'video-'+item.cid+'-'+index"
-                      :label="video.label"
-                      :value="video.url"
-                    ></el-option>
-                  </el-select>
-                </div>
+    <div v-if="downloadPath" class="download-path">
+      <span>保存位置</span>
+      <strong :title="downloadPath">{{ downloadPath }}</strong>
+    </div>
+
+    <div v-if="downloadInfo.length === 0" class="empty-state">
+      <div class="empty-symbol" aria-hidden="true">
+        <span></span><i></i>
+      </div>
+      <h3>待下载列表还是空的</h3>
+      <p>解析视频后，分集和清晰度会显示在这里。</p>
+      <el-button type="primary" plain @click="$router.push('/search')">解析新视频</el-button>
+    </div>
+
+    <div v-else class="download-info">
+      <div v-for="(video, videoIndex) in downloadInfo" :key="'video-'+videoIndex" class="download-page">
+        <div v-for="item in video.pages" :key="item.cid" class="download-item">
+          <div class="video-pic">
+            <img :src="item.pic" alt="视频封面" />
+          </div>
+          <div class="video-info">
+            <div class="download-item-top">
+              <div class="video-title" :title="item.title">{{ item.title }}</div>
+              <div class="video-action">
+                <el-button size="small" @click="downloadCover(item)">封面</el-button>
+                <el-button size="small" @click="downloadAudio(item)">音频</el-button>
+                <el-button size="small" type="primary" @click="downloadVideo(item)">下载视频</el-button>
+              </div>
+            </div>
+            <div class="video-select">
+              <div class="audio-quality">
+                <span class="select-span">音质</span>
+                <el-select
+                  v-model="selectedAudio[item.cid]"
+                  class="select-quality"
+                  placeholder="选择音频码率"
+                  size="small"
+                >
+                  <el-option
+                    v-for="(audio, index) in item.audioData"
+                    :key="'audio-'+item.cid+'-'+index"
+                    :label="audio.label"
+                    :value="audio.url"
+                  ></el-option>
+                </el-select>
+              </div>
+              <div class="video-quality">
+                <span class="select-span">画质</span>
+                <el-select
+                  v-model="selectedVideo[item.cid]"
+                  class="select-quality"
+                  placeholder="选择清晰度"
+                  size="small"
+                >
+                  <el-option
+                    v-for="(video, index) in item.videoData"
+                    :key="'video-'+item.cid+'-'+index"
+                    :label="video.label"
+                    :value="video.url"
+                  ></el-option>
+                </el-select>
               </div>
             </div>
           </div>
@@ -450,141 +452,291 @@ export default {
 
 
 <style scoped>
-/* 全局滚动条样式 */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f5f7fa;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #a0cffd;
-  border-radius: 4px;
-  transition: background 0.3s;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #60acfa;
-}
-
-::-webkit-scrollbar-corner {
-  background: #f5f7fa;
-}
-
-/* Firefox滚动条样式 */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #a0cffd #f5f7fa;
-}
-
-.download-wrapper {
+.waiting-view {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: calc(100vh - 100px);
-  overflow-y: auto;
-}
-
-.no-data {
-  font-weight: bold;
-  font-size: 16px;
-  color: #999;
-}
-
-.download-list {
   width: 100%;
   height: 100%;
+  min-height: 0;
+  padding: 0 clamp(24px, 5vw, 64px) 28px;
+  overflow: hidden;
 }
 
-.download-info {
-  margin-top: 50px;
+.waiting-toolbar {
   display: flex;
-  flex-direction: column;
+  flex: 0 0 auto;
   align-items: center;
-  width: 100%;
-  padding-bottom: 50px;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 66px;
+  border-bottom: 1px solid #e2e7ed;
+}
+
+.waiting-title h2 {
+  margin: 0;
+  color: #2b3745;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.waiting-title span {
+  display: block;
+  margin-top: 5px;
+  color: #8793a0;
+  font-size: 11px;
 }
 
 .download-action {
-  padding: 10px;
-  position: fixed;
-  height: 30px;
-  width: calc(100% - 60px);
-  background: #fff;
-  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.path-button {
+  max-width: 310px;
+  color: #596575;
+}
+
+.path-button :deep(.el-button__text),
+.path-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clear-button {
+  color: #778392;
+}
+
+.download-info {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 3px 12px 0;
+  overflow: auto;
 }
 
 .download-page {
-  width: calc(100% - 60px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .download-item {
-  height: 100px;
-  border: 2px solid #60acfa;
-  border-radius: 10px;
-  margin: 5px 0;
-  padding: 10px;
   display: flex;
-  justify-items: center;
+  gap: 15px;
+  min-height: 118px;
+  padding: 12px;
+  border: 1px solid #e3e8ee;
+  border-radius: 11px;
+  background: #fff;
+  transition: border-color 150ms ease, transform 150ms ease;
+}
+
+.download-item:hover {
+  border-color: #d2d9e1;
+  transform: translateY(-1px);
 }
 
 .video-pic {
-  margin-right: 10px;
+  width: 144px;
+  height: 92px;
+  flex: 0 0 144px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #e9edf1;
 }
 
 .video-pic img {
-  height: 100px;
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  border-radius: 6px;
 }
 
 .video-info {
-  width: calc(100% - 130px);
-}
-
-.video-title {
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-  max-width: 70%;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
 }
 
 .download-item-top {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  min-height: 34px;
+}
+
+.video-title {
+  min-width: 0;
+  overflow: hidden;
+  color: #293645;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-action {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
 }
 
 .video-select {
   display: flex;
-  justify-content: left;
-  justify-items: center;
-  margin-top: 10px;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 9px;
 }
 
 .audio-quality,
 .video-quality {
   display: flex;
-  justify-content: space-between;
-  justify-items: center;
+  align-items: center;
 }
 
 .select-span {
-  display: flex;
-  justify-items: center;
-  align-items: center;
-  width: 30px;
-  font-size: small;
-  margin-right: 5px;
+  width: 34px;
+  color: #8793a0;
+  font-size: 11px;
 }
 
 .select-quality {
-  width: 120px;
-  margin-right: 20px;
+  width: 150px;
+}
+
+.download-path {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 0 2px;
+  color: #84909d;
+  font-size: 10px;
+}
+
+.download-path strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #657180;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 250px;
+  padding-bottom: 35px;
+  text-align: center;
+}
+
+.empty-symbol {
+  position: relative;
+  width: 54px;
+  height: 42px;
+  margin-bottom: 17px;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.empty-symbol::before {
+  position: absolute;
+  top: -6px;
+  left: 5px;
+  width: 17px;
+  height: 8px;
+  border: 1px solid #d9e0e7;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: #fff;
+  content: "";
+}
+
+.empty-symbol span {
+  position: absolute;
+  top: 17px;
+  left: 20px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #fb7299;
+}
+
+.empty-symbol i {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  left: 8px;
+  height: 1px;
+  background: #e8ecf0;
+}
+
+.empty-state h3 {
+  margin: 0;
+  color: #354150;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin: 8px 0 16px;
+  color: #8994a1;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .waiting-view {
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+
+  .download-item-top {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .download-item {
+    min-height: 138px;
+  }
+
+  .download-action {
+    gap: 4px;
+  }
+
+  .path-button {
+    max-width: 180px;
+  }
+}
+
+@media (max-width: 650px) {
+  .waiting-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 10px 0;
+  }
+
+  .download-item {
+    align-items: flex-start;
+  }
+
+  .video-pic {
+    width: 100px;
+    height: 72px;
+    flex-basis: 100px;
+  }
 }
 </style>

@@ -1,23 +1,46 @@
 <template>
-  <div class="search">
-    <div class="search-wrapper">
-      <el-input
-        v-model="videoUrl"
-        class="custom-input"
-        clearable
-        placeholder="请输入链接"
-        @input="change"
-      ></el-input>
-      <el-button
-        class="custom-button"
-        type="primary"
-        @click="search"
-      >搜索
-      </el-button>
-    </div>
-    <div v-show="pages.length > 0" class="select-wrapper">
+  <div class="search-page">
+    <header class="search-intro">
+      <div class="search-intro-copy">
+        <div class="page-label"><span></span>视频解析</div>
+        <h1>把视频带回本地</h1>
+        <p>粘贴哔哩哔哩链接，选择分集与清晰度，再加入下载列表。</p>
+      </div>
+      <div class="media-stamp" aria-hidden="true">
+        <div class="media-screen">
+          <span class="play-mark"></span>
+          <span class="screen-timeline"><i></i></span>
+        </div>
+        <span>本地媒体</span>
+      </div>
+    </header>
+
+    <section class="search-panel">
+      <label class="field-label" for="video-url">视频链接</label>
+      <div class="search-wrapper">
+        <el-icon class="link-icon"><Link /></el-icon>
+        <el-input
+          id="video-url"
+          v-model="videoUrl"
+          class="custom-input"
+          clearable
+          placeholder="粘贴 BV、av 或 b23.tv 链接"
+          @input="change"
+          @keyup.enter="search"
+        ></el-input>
+        <el-button class="custom-button" type="primary" @click="search">
+          解析视频
+        </el-button>
+      </div>
+      <div class="search-hint">支持哔哩哔哩视频链接与短链接</div>
+    </section>
+
+    <section v-if="pages.length > 0" class="select-wrapper">
       <div class="select-head" @click="toggleCollapse">
-        <div class="head-title">已选择[{{ selectedPages.length }} / {{ pages.length }}]</div>
+        <div>
+          <div class="head-title">选择分集</div>
+          <div class="selection-count">已选择 {{ selectedPages.length }} / {{ pages.length }}</div>
+        </div>
         <el-icon :class="{'is-rotate': !isCollapsed}" class="collapse-icon">
           <ArrowDown />
         </el-icon>
@@ -30,7 +53,8 @@
             :value="page.cid"
             class="page-checkbox"
           >
-            {{ page.part }} (P{{ index + 1 }})
+            <span class="part-number">P{{ index + 1 }}</span>
+            <span>{{ page.part }}</span>
           </el-checkbox>
         </el-checkbox-group>
         <div class="select-actions">
@@ -40,7 +64,7 @@
             class="select-all"
             @change="handleSelectAllChange"
           >
-            全选
+            全选分集
           </el-checkbox>
           <el-button
             :disabled="selectedPages.length === 0"
@@ -48,20 +72,21 @@
             type="primary"
             @click="getDownloadInfo"
           >
-            下一步
+            加入下载列表
           </el-button>
         </div>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script>
-import { ArrowDown } from "@element-plus/icons-vue";
+import { ArrowDown, Link } from "@element-plus/icons-vue";
 
 export default {
   components: {
-    ArrowDown
+    ArrowDown,
+    Link
   },
   data() {
     return {
@@ -277,155 +302,316 @@ export default {
 </script>
 
 <style scoped>
-/* 保持原有样式不变 */
-.search {
-  padding: 0 20px;
+.search-page {
+  width: 100%;
+  min-height: 100%;
+  padding: 52px clamp(28px, 6vw, 76px) 48px;
+  overflow: auto;
+}
+
+.search-intro,
+.search-panel,
+.select-wrapper {
+  width: min(100%, 900px);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.search-intro {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  min-height: 142px;
+  margin-bottom: 26px;
+}
+
+.page-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 13px;
+  color: #687585;
+  font-size: 12px;
+}
+
+.page-label span {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: #fb7299;
+  transform: rotate(45deg);
+}
+
+.search-intro h1 {
+  margin: 0;
+  color: #1e2a37;
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 680;
+  letter-spacing: -0.04em;
+  line-height: 1.25;
+}
+
+.search-intro p {
+  margin: 11px 0 0;
+  color: #758292;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.media-stamp {
+  display: flex;
   flex-direction: column;
-  width: calc(100% - 40px);
+  align-items: center;
+  gap: 8px;
+  width: 132px;
+  margin-right: 18px;
+  color: #8a96a4;
+  font-size: 10px;
+}
+
+.media-screen {
+  position: relative;
+  display: grid;
+  width: 86px;
+  height: 58px;
+  place-items: center;
+  border: 1px solid #dbe1e8;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #fff 0 55%, #f9e6eb 55% 100%);
+  box-shadow: 0 8px 20px rgba(31, 46, 61, 0.07);
+}
+
+.media-screen::before {
+  position: absolute;
+  right: -7px;
+  bottom: -6px;
+  left: 8px;
+  height: 5px;
+  border: 1px solid #dbe1e8;
+  border-top: 0;
+  border-radius: 0 0 5px 5px;
+  content: "";
+}
+
+.play-mark {
+  width: 0;
+  height: 0;
+  margin-left: 3px;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 12px solid #fb7299;
+}
+
+.screen-timeline {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  left: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: #e1e5ea;
+}
+
+.screen-timeline i {
+  display: block;
+  width: 38%;
   height: 100%;
+  border-radius: inherit;
+  background: #fb7299;
+}
+
+.search-panel,
+.select-wrapper {
+  border: 1px solid #e3e8ee;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(29, 42, 56, 0.035);
+}
+
+.search-panel {
+  padding: 20px 22px 16px;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 10px;
+  color: #3c4856;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .search-wrapper {
-  margin-top: 150px;
-  width: 43%;
-  min-width: 400px;
-  height: 40px; /* 增加整体高度 */
   display: flex;
-  border: 2px solid #DCDFE6;
-  border-radius: 6px; /* 增大圆角 */
-  position: relative;
+  align-items: center;
+  height: 52px;
+  padding: 4px;
+  border: 1px solid #dce2e8;
+  border-radius: 9px;
   background: #fff;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .search-wrapper:focus-within {
-  border-color: #60acfa;
+  border-color: #fb7299;
+  box-shadow: 0 0 0 3px rgba(251, 114, 153, 0.11);
+}
+
+.link-icon {
+  flex: 0 0 auto;
+  margin: 0 9px 0 11px;
+  color: #8995a2;
+  font-size: 17px;
 }
 
 .custom-input {
   flex: 1;
+  min-width: 0;
   height: 100%;
 }
 
-/* 调整输入框内部样式 */
 .search-wrapper :deep(.el-input__wrapper) {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
   box-shadow: none !important;
-  border: none !important;
-  height: 100%;
-  padding: 0 15px;
 }
 
 .search-wrapper :deep(.el-input__inner) {
-  border: none !important;
-  height: 100% !important;
-  line-height: 40px; /* 保持文字垂直居中 */
+  height: 42px;
+  color: #273442;
+  font-size: 13px;
+}
+
+.search-wrapper :deep(.el-input__inner::placeholder) {
+  color: #a0a9b4;
 }
 
 .custom-button {
-  height: calc(100% - 6px) !important; /* 高度减少6px */
-  margin: 3px 3px 3px 0; /* 添加外边距 */
-  border-radius: 4px !important;
-  background: #409EFF;
-  color: white;
-  transition: all 0.3s;
-  font-size: 13px;
-  font-weight: bold;
+  height: 42px;
+  padding: 0 21px;
+  border: 0;
+  border-radius: 7px;
+  font-weight: 600;
+  box-shadow: 0 3px 8px rgba(251, 114, 153, 0.2);
 }
 
-.custom-button:hover {
-  background: #66b1ff;
-  border-color: #66b1ff !important;
+.search-hint {
+  margin: 9px 0 0 2px;
+  color: #929daa;
+  font-size: 11px;
 }
 
-/* 下拉选择区域样式 */
 .select-wrapper {
-  width: 43%;
-  min-width: 400px;
-  margin-top: 20px;
-  border: 1px solid #DCDFE6;
-  border-radius: 6px;
-  background: #fff;
+  margin-top: 16px;
+  overflow: hidden;
 }
 
 .select-head {
-  padding: 12px 15px;
-  background: #f5f7fa;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  min-height: 64px;
+  padding: 12px 20px;
   cursor: pointer;
   user-select: none;
-  font-weight: bold;
-  color: #606266;
 }
 
 .head-title {
-  font-size: 14px;
+  color: #2b3745;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.selection-count {
+  margin-top: 4px;
+  color: #85919e;
+  font-size: 11px;
 }
 
 .collapse-icon {
-  font-size: 16px;
-  transition: transform 0.3s;
+  color: #85919e;
+  transition: transform 180ms ease;
 }
 
-.is-rotate {
+.collapse-icon.is-rotate {
   transform: rotate(180deg);
 }
 
 .select-content {
-  padding: 15px;
+  padding: 0 20px 16px;
+  border-top: 1px solid #edf0f3;
 }
 
-/* 复选框组样式 */
 .el-checkbox-group {
   display: flex;
   flex-direction: column;
   max-height: 250px;
+  margin: 10px 0 12px;
   overflow-y: auto;
-  margin-bottom: 15px;
-  padding-right: 5px;
 }
 
-/* 单个复选框样式 */
 .page-checkbox {
-  margin: 5px 0;
-  display: block;
+  display: flex;
   width: 100%;
+  min-height: 38px;
+  margin: 0;
+  border-bottom: 1px solid #f0f2f5;
 }
 
-/* 底部操作区域 */
+.page-checkbox :deep(.el-checkbox__label) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  color: #4f5c6b;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.part-number {
+  color: #9aa4af;
+  font-size: 10px;
+  font-weight: 650;
+}
+
 .select-actions {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding-top: 10px;
-  border-top: 1px solid #EBEEF5;
+  justify-content: space-between;
+  padding-top: 13px;
 }
 
-/* 全选样式 */
 .select-all {
-  margin-right: auto;
+  color: #596575;
 }
 
-/* 下一步按钮 */
 .next-step {
-  margin-left: auto;
+  min-height: 36px;
+  padding: 0 17px;
+  font-size: 12px;
 }
 
-/* 滚动条样式 */
-.el-checkbox-group::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+@media (max-width: 760px) {
+  .search-page {
+    padding: 34px 22px;
+  }
 
-.el-checkbox-group::-webkit-scrollbar-thumb {
-  background: #c0c4cc;
-  border-radius: 3px;
-}
+  .media-stamp {
+    display: none;
+  }
 
-.el-checkbox-group::-webkit-scrollbar-track {
-  background: #f5f7fa;
-  border-radius: 3px;
+  .search-intro {
+    min-height: 120px;
+  }
+
+  .search-panel {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .custom-button {
+    padding: 0 12px;
+  }
 }
 </style>

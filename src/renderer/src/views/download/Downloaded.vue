@@ -1,21 +1,26 @@
 <template>
   <div class="completed-wrapper">
     <div v-if="completedTasks.length === 0" class="no-data">
-      <div>暂无已完成任务</div>
-      <div>No completed tasks</div>
+      <div class="empty-symbol" aria-hidden="true"><span></span><i></i></div>
+      <h3>还没有已完成的下载</h3>
+      <p>完成的文件会收录在这里，方便打开或查看所在文件夹。</p>
+      <el-button type="primary" plain @click="$router.push('/download/waiting')">查看待下载列表</el-button>
     </div>
     <div v-else class="completed-list">
       <div class="completed-header">
-        <h3>已完成任务 ({{ completedTasks.length }})</h3>
-        <el-button size="small" type="danger" @click="clearAllCompleted">清空记录</el-button>
+        <div>
+          <h2>已完成任务</h2>
+          <span>已保存 {{ completedTasks.length }} 个文件记录</span>
+        </div>
+        <el-button size="small" @click="clearAllCompleted">清空记录</el-button>
       </div>
       <div class="completed-items">
         <div v-for="task in completedTasks" :key="`${task.avid}-${task.cid}`" class="completed-item">
           <div class="item-cover" v-if="task.picUrl">
-            <img :src="task.picUrl" alt="封面" @error="handleImageError">
+            <img :src="task.picUrl" alt="视频封面" @error="handleImageError">
           </div>
           <div class="item-info">
-            <div class="item-title">{{ task.title }}</div>
+            <div class="item-title" :title="task.title">{{ task.title }}</div>
             <div class="item-path">
               <span>保存路径: {{ task.outputFilePath }}</span>
             </div>
@@ -181,128 +186,210 @@ export default {
 
     // 处理图片加载错误
     handleImageError(e) {
-      e.target.src = '/path/to/placeholder-image.png'; // 设置一个默认的占位图
+      e.target.style.visibility = 'hidden';
     }
   }
 };
 </script>
 
 <style scoped>
-/* 全局滚动条样式 */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f5f7fa;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #a0cffd;
-  border-radius: 4px;
-  transition: background 0.3s;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #60acfa;
-}
-
-::-webkit-scrollbar-corner {
-  background: #f5f7fa;
-}
-
-
 .completed-wrapper {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 100px);
-  overflow-y: auto; /* 关键：使容器可以垂直滚动 */
-  padding: 0 20px;
+  height: 100%;
+  min-height: 0;
+  padding: 0 clamp(24px, 5vw, 64px) 28px;
+  overflow: hidden;
 }
 
 .completed-list {
-  max-height: 100%;
-  overflow-y: auto;
-  padding-bottom: 20px;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .no-data {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 300px;
-  color: #909399;
-  font-size: 16px;
+  min-height: 250px;
+  padding-bottom: 35px;
+  text-align: center;
 }
 
 .completed-header {
   display: flex;
-  justify-content: space-between;
+  flex: 0 0 auto;
   align-items: center;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  min-height: 66px;
+  border-bottom: 1px solid #e2e7ed;
 }
 
-.completed-header h3 {
+.completed-header h2 {
   margin: 0;
-  font-size: 18px;
-  color: #303133;
+  color: #2b3745;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.completed-header > div > span {
+  display: block;
+  margin-top: 5px;
+  color: #8793a0;
+  font-size: 11px;
 }
 
 .completed-items {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
+  min-height: 0;
+  padding: 16px 3px 14px 0;
+  overflow-y: auto;
 }
 
 .completed-item {
   display: flex;
-  padding: 15px;
-  border-radius: 4px;
-  background-color: #fff;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  align-items: center;
+  gap: 15px;
+  min-height: 104px;
+  padding: 12px;
+  border: 1px solid #e3e8ee;
+  border-radius: 10px;
+  background: #fff;
 }
 
 .item-cover {
-  width: 120px;
-  height: 70px;
-  margin-right: 15px;
+  position: relative;
+  width: 128px;
+  height: 74px;
+  flex: 0 0 128px;
   overflow: hidden;
-  border-radius: 4px;
-  flex-shrink: 0;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #e9edf2, #f7e7ec);
 }
 
 .item-cover img {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
 .item-info {
-  flex: 1;
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 5px;
-  margin-right: 15px;
+  gap: 6px;
+  min-width: 0;
+  margin-right: 5px;
 }
 
 .item-title {
-  font-size: 16px;
-  font-weight: 500;
-  color: #303133;
+  overflow: hidden;
+  color: #293645;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.item-path, .item-time {
-  font-size: 13px;
-  color: #606266;
+.item-path,
+.item-time {
+  overflow: hidden;
+  color: #818d9a;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .item-actions {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  justify-content: center;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.empty-symbol {
+  position: relative;
+  width: 54px;
+  height: 42px;
+  margin-bottom: 17px;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.empty-symbol::before {
+  position: absolute;
+  top: -6px;
+  left: 5px;
+  width: 17px;
+  height: 8px;
+  border: 1px solid #d9e0e7;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: #fff;
+  content: "";
+}
+
+.empty-symbol span {
+  position: absolute;
+  top: 17px;
+  left: 20px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #fb7299;
+}
+
+.empty-symbol i {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  left: 8px;
+  height: 1px;
+  background: #e8ecf0;
+}
+
+.no-data h3 {
+  margin: 0;
+  color: #354150;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.no-data p {
+  margin: 8px 0 16px;
+  color: #8994a1;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .completed-wrapper {
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+
+  .completed-item {
+    flex-wrap: wrap;
+  }
+
+  .item-info {
+    min-width: calc(100% - 155px);
+  }
+
+  .item-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 </style>

@@ -1,12 +1,17 @@
 <template>
   <div class="downloading-wrapper">
     <div v-if="downloadingTasks.length === 0" class="no-data">
-      <div>暂无下载任务</div>
-      <div>No downloading tasks</div>
+      <div class="empty-symbol" aria-hidden="true"><span></span><i></i></div>
+      <h3>当前没有活动任务</h3>
+      <p>添加视频后，下载和处理进度会显示在这里。</p>
+      <el-button type="primary" plain @click="$router.push('/download/waiting')">查看待下载列表</el-button>
     </div>
     <div v-else class="task-list">
       <div class="task-list-header">
-        <h3>下载中任务 ({{ downloadingTasks.length }})</h3>
+        <div>
+          <h2>活动任务</h2>
+          <span>正在下载或处理 {{ downloadingTasks.length }} 个项目</span>
+        </div>
         <el-button size="small" type="danger" @click="cancelAllTasks">取消全部</el-button>
       </div>
       <div class="task-items">
@@ -237,125 +242,201 @@ export default {
 </script>
 
 <style scoped>
-/* 全局滚动条样式 */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f5f7fa;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #a0cffd;
-  border-radius: 4px;
-  transition: background 0.3s;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #60acfa;
-}
-
-::-webkit-scrollbar-corner {
-  background: #f5f7fa;
-}
-
 .downloading-wrapper {
   display: flex;
   flex-direction: column;
-  /* 调整高度，确保出现滚动条 */
-  height: calc(100vh - 100px);
-  overflow-y: auto; /* 关键：使容器可以垂直滚动 */
-  padding: 0 20px;
+  height: 100%;
+  min-height: 0;
+  padding: 0 clamp(24px, 5vw, 64px) 28px;
+  overflow: hidden;
 }
 
-.task-tabs-content {
-  height: calc(100vh - 150px); /* 适当减小，留出tab头部的空间 */
-  overflow-y: auto; /* 确保内容区域可滚动 */
-}
-
-/* 确保任务列表可以滚动 */
 .task-list {
-  max-height: 100%;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
   overflow-y: auto;
-  padding-bottom: 20px;
+  padding: 16px 3px 14px 0;
 }
 
 .no-data {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 300px;
-  color: #909399;
-  font-size: 16px;
+  min-height: 250px;
+  padding-bottom: 35px;
+  text-align: center;
 }
 
 .task-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  flex: 0 0 auto;
+  min-height: 66px;
+  border-bottom: 1px solid #e2e7ed;
 }
 
-.task-list-header h3 {
+.task-list-header h2 {
   margin: 0;
-  font-size: 18px;
-  color: #303133;
+  color: #2b3745;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.task-list-header > div > span {
+  display: block;
+  margin-top: 5px;
+  color: #8793a0;
+  font-size: 11px;
 }
 
 .task-items {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
 }
 
 .task-item {
   display: flex;
   align-items: center;
-  padding: 15px;
-  border-radius: 4px;
-  background-color: #fff;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  gap: 18px;
+  min-height: 91px;
+  padding: 13px 15px;
+  border: 1px solid #e3e8ee;
+  border-radius: 10px;
+  background: #fff;
 }
 
 .task-info {
-  flex: 2;
-  margin-right: 15px;
+  flex: 1.15;
+  min-width: 170px;
 }
 
 .task-title {
-  font-size: 16px;
-  font-weight: 500;
-  color: #303133;
-  margin-bottom: 8px;
-  word-break: break-all;
+  overflow: hidden;
+  margin-bottom: 7px;
+  color: #293645;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-status {
-  font-size: 14px;
-  color: #606266;
+  overflow: hidden;
+  color: #818d9a;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-error {
-  color: #f56c6c;
+  color: #c64d62;
 }
 
 .error-msg {
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .task-progress {
-  flex: 3;
-  margin-right: 15px;
+  flex: 1;
+  min-width: 130px;
+}
+
+.task-progress :deep(.el-progress-bar__outer) {
+  background: #edf0f3;
+}
+
+.task-progress :deep(.el-progress-bar__inner) {
+  background: #fb7299;
 }
 
 .task-actions {
-  flex: 1;
   display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.empty-symbol {
+  position: relative;
+  width: 54px;
+  height: 42px;
+  margin-bottom: 17px;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.empty-symbol::before {
+  position: absolute;
+  top: -6px;
+  left: 5px;
+  width: 17px;
+  height: 8px;
+  border: 1px solid #d9e0e7;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: #fff;
+  content: "";
+}
+
+.empty-symbol span {
+  position: absolute;
+  top: 17px;
+  left: 20px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #fb7299;
+}
+
+.empty-symbol i {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  left: 8px;
+  height: 1px;
+  background: #e8ecf0;
+}
+
+.no-data h3 {
+  margin: 0;
+  color: #354150;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.no-data p {
+  margin: 8px 0 16px;
+  color: #8994a1;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .downloading-wrapper {
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+
+  .task-item {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .task-progress {
+    order: 1;
+    flex-basis: 100%;
+  }
+
+  .task-actions {
+    margin-left: auto;
+  }
 }
 </style>
