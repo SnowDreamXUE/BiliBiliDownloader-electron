@@ -14,10 +14,50 @@
         </span>
       </div>
       <div v-if="downloadInfo.length" class="download-action">
-        <el-button type="primary" @click="downloadAll">全部下载</el-button>
+        <el-button type="primary" :disabled="batchDownloading" @click="openBatchDownloadDialog">全部下载设置</el-button>
         <el-button class="clear-button" @click="clearAll">清空</el-button>
       </div>
     </header>
+
+    <el-dialog
+      v-model="batchDialogVisible"
+      title="全部下载设置"
+      width="460px"
+      class="batch-dialog"
+      :close-on-click-modal="false"
+      :close-on-press-escape="!batchDownloading"
+      :show-close="!batchDownloading"
+    >
+      <div class="batch-dialog-intro">
+        选择本次批量下载要保存的内容，已选择的画质和音质会继续沿用。
+      </div>
+      <el-radio-group v-model="batchDownloadMode" class="batch-mode-list" :disabled="batchDownloading">
+        <el-radio
+          v-for="mode in batchDownloadModes"
+          :key="mode.value"
+          :value="mode.value"
+          class="batch-mode"
+          :class="{ 'is-selected': batchDownloadMode === mode.value }"
+        >
+          <span class="batch-mode-copy">
+            <strong>{{ mode.label }}</strong>
+            <small>{{ mode.description }}</small>
+          </span>
+        </el-radio>
+      </el-radio-group>
+      <div class="batch-preview">预计加入 {{ batchDownloadCount }} 个下载任务</div>
+      <template #footer>
+        <el-button :disabled="batchDownloading" @click="batchDialogVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :loading="batchDownloading"
+          :disabled="batchDownloadCount === 0"
+          @click="confirmBatchDownload"
+        >
+          {{ batchDownloading ? `正在添加 ${batchProgress}` : "开始下载" }}
+        </el-button>
+      </template>
+    </el-dialog>
 
     <div v-if="downloadInfo.length === 0" class="empty-state">
       <h3>暂无待下载内容</h3>
@@ -98,8 +138,23 @@ export default {
       selectedVideo: {}, // 存储选中的视频质量
       selectedAudio: {}, // 存储选中的音频质量
       downloadConfig: loadDownloadConfig(),
-      downloadPath: "" // 下载路径
+      downloadPath: "", // 下载路径
+      batchDialogVisible: false,
+      batchDownloading: false,
+      batchProgress: "",
+      batchDownloadMode: "video",
+      batchDownloadModes: [
+        { value: "video", label: "视频（含音频）", description: "按当前画质和音质合并为视频文件" },
+        { value: "audio", label: "只下载音频", description: "保存当前选择的音频格式" },
+        { value: "cover", label: "只下载封面", description: "保存每个视频的封面图片" },
+        { value: "all", label: "全部下载", description: "同时保存视频、独立音频和封面" }
+      ]
     };
+  },
+  computed: {
+    batchDownloadCount() {
+      return this.getBatchDownloadItems(this.batchDownloadMode).length;
+    }
   },
 
   mounted() {
@@ -362,104 +417,91 @@ export default {
       }
     },
 
-    // 下载全部视频 - 修改为多次调用单个视频下载
-    async downloadAll() {
-      try {
-        // 收集所有下载项
-        const downloadItems = [];
+    openBatchDownloadDialog() {
+      this.batchDownloadMode = "video";
+      this.batchDialogVisible = true;
+    },
 
-        this.downloadInfo.forEach(videoInfo => {
-          // 提取合集信息
-          const isCompilations = !!videoInfo.isCompilations;
-          const videoName = videoInfo.videoName || '';
-
-          videoInfo.pages.forEach(item => {
-            const videoUrl = this.selectedVideo[item.cid];
-            const audioUrl = this.selectedAudio[item.cid];
-
-            if (videoUrl && audioUrl) {
-              downloadItems.push({
-                avid: videoInfo.avid,
-                cid: item.cid,
-                title: item.title,
-                videoUrl: videoUrl,
-                audioUrl: audioUrl,
-                audioFormat: this.getAudioFormat(item),
-                // 确保始终保留合集信息
-                isCompilations: isCompilations,
-                videoName: videoName,
-                item: item // 原始页面item，用于后续调用
-              });
-            }
-          });
+    getBatchDownloadItems(mode) {
+      const items = [];
+      this.downloadInfo.forEach(videoInfo => {
+        videoInfo.pages.forEach(item => {
+          const baseItem = {
+            avid: videoInfo.avid,
+            cid: item.cid,
+            title: item.title,
+            videoUrl: this.selectedVideo[item.cid],
+            audioUrl: this.selectedAudio[item.cid],
+            audioFormat: this.getAudioFormat(item),
+            picUrl: item.pic,
+            isCompilations: !!videoInfo.isCompilations,
+            videoName: videoInfo.videoName || ""
+          };
+          const available = mode === "video"
+            ? Boolean(baseItem.videoUrl && baseItem.audioUrl)
+            : mode === "audio"
+              ? Boolean(baseItem.audioUrl)
+              : mode === "cover"
+                ? Boolean(baseItem.picUrl)
+                : Boolean(baseItem.videoUrl && baseItem.audioUrl && baseItem.picUrl);
+          if (available) items.push({ ...baseItem, type: mode });
         });
+      });
+      return items;
+    },
+
+    async confirmBatchDownload() {
+      try {
+        const downloadItems = this.getBatchDownloadItems(this.batchDownloadMode);
 
         if (downloadItems.length === 0) {
-          this.$message.warning("没有可下载的项目");
+          this.$message.warning("当前设置下没有可下载的项目");
           return;
         }
 
-        // 显示确认对话框，告知用户将要下载的数量
-        this.$confirm(`确定要下载所有${downloadItems.length}个视频吗?`, "批量下载确认", {
-          confirmButtonText: "确定",
-          cancelButtonText: "取消",
-          type: "info"
-        }).then(async () => {
-          let successCount = 0;
-          let failCount = 0;
-
-          // 逐个调用视频下载函数
-          for (const item of downloadItems) {
-            try {
-              // 创建下载任务，确保包含合集信息
-              const downloadItem = {
-                avid: item.avid,
-                cid: item.cid,
-                title: item.title,
-                videoUrl: item.videoUrl,
-                audioUrl: item.audioUrl,
-                audioFormat: item.audioFormat,
-                isCompilations: item.isCompilations,
-                videoName: item.videoName
-              };
-
-              // 添加到下载队列
-              const result = await window.api.download.startDownload(downloadItem);
-
-              if (result.success) {
-                // 对于视频下载，需要从下载信息中删除对应的页面
+        this.batchDownloading = true;
+        let successCount = 0;
+        let failCount = 0;
+        for (const [index, item] of downloadItems.entries()) {
+          this.batchProgress = `${index + 1}/${downloadItems.length}`;
+          try {
+            const result = await window.api.download.startDownload({
+              avid: item.avid,
+              cid: item.cid,
+              title: item.title,
+              videoUrl: item.videoUrl,
+              audioUrl: item.audioUrl,
+              audioFormat: item.audioFormat,
+              picUrl: item.picUrl,
+              isCompilations: item.isCompilations,
+              videoName: item.videoName,
+              type: item.type
+            });
+            if (result.success) {
+              successCount++;
+              if (item.type === "video" || item.type === "all") {
                 await window.api.storage.removeDownloadInfoPage(item.avid, item.cid);
-
-                // 从当前页面信息中也移除该视频
                 this.updateLocalDownloadInfo(item.avid, item.cid);
-
-                successCount++;
-              } else {
-                console.error(`下载视频 ${item.title} 失败:`, result.message || result.error);
-                failCount++;
               }
-            } catch (error) {
-              console.error(`下载视频 ${item.title} 出错:`, error);
+            } else {
               failCount++;
             }
+          } catch (error) {
+            console.error(`批量下载 ${item.title} 出错`, error);
+            failCount++;
           }
+        }
 
-          // 显示总体结果
-          if (failCount === 0) {
-            this.$message.success(`已成功添加${successCount}个下载任务`);
-          } else {
-            this.$message.warning(`已添加${successCount}个下载任务，${failCount}个任务添加失败`);
-          }
-
-          // 跳转到下载中页面
-          this.$router.push("/download/downloading");
-        }).catch(() => {
-          // 取消操作
-          this.$message.info("已取消批量下载");
-        });
+        if (failCount === 0) this.$message.success(`已添加 ${successCount} 个下载任务`);
+        else this.$message.warning(`已添加 ${successCount} 个任务，${failCount} 个任务失败`);
+        this.batchDialogVisible = false;
+        if (successCount > 0) this.$router.push("/download/downloading");
       } catch (error) {
         console.error("批量下载失败", error);
         this.$message.error(`批量下载出错: ${error.message}`);
+      } finally {
+        this.batchDownloading = false;
+        this.batchProgress = "";
       }
     },
 
@@ -551,6 +593,72 @@ export default {
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
+}
+
+.batch-dialog-intro {
+  margin-bottom: 14px;
+  color: #7b8794;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.batch-mode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.batch-mode {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 52px;
+  padding: 11px 12px;
+  margin: 0;
+  border: 1px solid #e5e9ee;
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.batch-mode:hover,
+.batch-mode.is-selected {
+  border-color: #f3a0b8;
+  background: #fff8fa;
+}
+
+.batch-mode :deep(.el-radio__input) {
+  margin-top: 2px;
+}
+
+.batch-mode :deep(.el-radio__label) {
+  flex: 1;
+  padding-left: 9px;
+}
+
+.batch-mode-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.batch-mode-copy strong {
+  color: #354150;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.batch-mode-copy small {
+  color: #8a95a1;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.batch-preview {
+  margin-top: 14px;
+  color: #727f8d;
+  font-size: 12px;
 }
 
 .path-button {

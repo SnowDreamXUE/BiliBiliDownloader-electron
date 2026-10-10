@@ -266,7 +266,7 @@ async function startDownload(item) {
       if (!completedParts.has('video')) {
         await updateDownloadingTask(avid, cid, { downloadPhase: 'video', status: 'downloading' });
         await downloadFile(videoUrl, videoFilePath, progress => {
-          return updateDownloadProgress(avid, cid, progress * 0.4);
+          return updateDownloadProgress(avid, cid, progress * (downloadType === 'all' ? 0.35 : 0.4));
         }, control => { taskState.control = control; });
         completedParts.add('video');
         await updateDownloadingTask(avid, cid, {
@@ -278,7 +278,9 @@ async function startDownload(item) {
       if (!completedParts.has('audio')) {
         await updateDownloadingTask(avid, cid, { downloadPhase: 'audio', status: 'downloading' });
         await downloadFile(audioUrl, audioFilePath, progress => {
-          return updateDownloadProgress(avid, cid, 40 + progress * 0.4);
+          return updateDownloadProgress(avid, cid, downloadType === 'all'
+            ? 35 + progress * 0.35
+            : 40 + progress * 0.4);
         }, control => { taskState.control = control; });
         completedParts.add('audio');
         await updateDownloadingTask(avid, cid, {
@@ -288,13 +290,45 @@ async function startDownload(item) {
       }
 
       await updateDownloadingTask(avid, cid, { downloadPhase: 'merging', status: 'merging' });
-      const mergeProgress = createProgressUpdater(avid, cid, 80, 0.2);
+      const mergeProgress = createProgressUpdater(
+        avid, cid, downloadType === 'all' ? 70 : 80, downloadType === 'all' ? 0.1 : 0.2
+      );
       await mergeVideoAudio(videoFilePath, audioFilePath, outputFilePath, progress => {
         mergeProgress.onProgress(progress);
       }, audioFormat);
       await mergeProgress.flush();
+      const outputFilePaths = [outputFilePath];
+
+      if (downloadType === 'all') {
+        if (!picUrl) throw new Error('封面URL不能为空');
+
+        const audioExtension = audioFormat === 'flac' ? 'flac' : audioFormat === 'dolby' ? 'mka' : 'mp3';
+        const separateAudioOutputPath = path.resolve(downloadDir, `${safeTitle}_audio.${audioExtension}`);
+        const coverPath = path.resolve(downloadDir, `${safeTitle}.jpg`);
+
+        await updateDownloadingTask(avid, cid, { downloadPhase: 'converting', status: 'converting' });
+        const separateAudioProgress = createProgressUpdater(avid, cid, 80, 0.15);
+        const processAudio = audioFormat === 'mp3' ? convertToMp3 : remuxAudio;
+        await processAudio(audioFilePath, separateAudioOutputPath, progress => {
+          separateAudioProgress.onProgress(progress);
+        });
+        await separateAudioProgress.flush();
+        outputFilePaths.push(separateAudioOutputPath);
+
+        if (!completedParts.has('cover')) {
+          await updateDownloadingTask(avid, cid, { downloadPhase: 'cover', status: 'downloading' });
+          await downloadFile(picUrl, coverPath, progress => {
+            return updateDownloadProgress(avid, cid, 95 + progress * 0.05);
+          }, control => { taskState.control = control; });
+          completedParts.add('cover');
+          await updateDownloadingTask(avid, cid, { completedParts: [...completedParts] });
+        }
+        outputFilePaths.push(coverPath);
+      }
+
       completionData = {
         outputFilePath,
+        outputFilePaths,
         status: 'completed',
         type: downloadType,
         isCompilations: isVideoCollection,

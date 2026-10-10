@@ -10,7 +10,7 @@
       <div class="completed-header">
         <div>
           <h2>已完成任务</h2>
-          <span>已保存 {{ completedTasks.length }} 个文件记录</span>
+          <span>已保存 {{ completedTasks.length }} 条记录</span>
         </div>
         <el-button size="small" @click="clearAllCompleted">清空记录</el-button>
       </div>
@@ -21,16 +21,20 @@
           </div>
           <div class="item-info">
             <div class="item-title" :title="task.title">{{ task.title }}</div>
-            <div class="item-path">
-              <span>保存路径: {{ task.outputFilePath }}</span>
+            <div class="item-paths">
+              <div v-for="filePath in getTaskOutputPaths(task)" :key="filePath" class="item-path">
+                <span :title="filePath">{{ filePath }}</span>
+                <div class="path-actions">
+                  <el-button size="small" @click="openFile(filePath)">打开</el-button>
+                  <el-button size="small" @click="openFolder(filePath)">文件夹</el-button>
+                </div>
+              </div>
             </div>
             <div class="item-time">
               <span>完成时间: {{ formatDate(task.completedAt) }}</span>
             </div>
           </div>
           <div class="item-actions">
-            <el-button size="small" type="primary" @click="openFile(task.outputFilePath)">打开文件</el-button>
-            <el-button size="small" @click="openFolder(task.outputFilePath)">打开文件夹</el-button>
             <el-button size="small" type="danger" @click="removeTask(task.avid, task.cid)">删除记录</el-button>
           </div>
         </div>
@@ -64,6 +68,11 @@ export default {
   },
 
   methods: {
+    getTaskOutputPaths(task) {
+      const paths = Array.isArray(task.outputFilePaths) ? task.outputFilePaths : [task.outputFilePath];
+      return paths.filter(filePath => typeof filePath === 'string' && filePath.length > 0);
+    },
+
     // 加载已完成任务
     async loadCompletedTasks() {
       try {
@@ -300,13 +309,48 @@ export default {
   white-space: nowrap;
 }
 
-.item-path,
 .item-time {
   overflow: hidden;
   color: #818d9a;
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.item-paths {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.item-path {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: #818d9a;
+  font-size: 10px;
+}
+
+.item-path > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.path-actions :deep(.el-button) {
+  height: 24px;
+  padding: 0 7px;
+  font-size: 10px;
 }
 
 .item-actions {
