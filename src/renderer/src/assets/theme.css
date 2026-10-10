@@ -1,0 +1,80 @@
+:root {
+  color-scheme: light;
+  --app-bg: #f2f4f7;
+  --app-surface: #ffffff;
+  --app-ink: #202a36;
+  --app-muted: #798594;
+  --app-line: #e3e8ee;
+  --bili-pink: #fb7299;
+  --el-color-primary: #fb7299;
+  --el-color-primary-light-3: #fc91ae;
+  --el-color-primary-light-5: #fdb2c5;
+  --el-color-primary-light-7: #fed5df;
+  --el-color-primary-light-8: #fee4ea;
+  --el-color-primary-light-9: #fff3f6;
+  --el-color-primary-dark-2: #e75a82;
+  --el-border-color: #e3e8ee;
+  --el-border-color-light: #edf0f4;
+  --el-text-color-primary: #202a36;
+  --el-text-color-regular: #536171;
+  --el-text-color-secondary: #798594;
+  --el-fill-color-light: #f4f6f8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  color: var(--app-ink);
+  background: var(--app-bg);
+  font-family: "Segoe UI Variable", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+::selection {
+  color: #172433;
+  background: #ffd2df;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #cbd2da;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #aeb8c3;
+  background-clip: padding-box;
+}
+
+:focus-visible {
+  outline: 2px solid #fb7299;
+  outline-offset: 2px;
+}
