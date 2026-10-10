@@ -23,6 +23,22 @@
           </div>
           <div class="task-actions">
             <el-button
+              v-if="task.status === 'downloading'"
+              size="small"
+              type="warning"
+              @click="pauseTask(task)"
+            >
+              暂停
+            </el-button>
+            <el-button
+              v-else-if="task.status === 'paused'"
+              size="small"
+              type="success"
+              @click="resumeTask(task)"
+            >
+              继续
+            </el-button>
+            <el-button
               size="small"
               type="danger"
               @click="cancelTask(task.avid, task.cid)"
@@ -82,19 +98,47 @@ export default {
     // 取消单个下载任务
     async cancelTask(avid, cid) {
       try {
-        const result = await window.ipcRenderer.invoke('cancel-download', avid, cid);
+        const result = await window.api.download.cancelDownload(avid, cid);
         if (result.success) {
-          // 从下载中列表移除
           await window.api.storage.removeDownloadingTask(avid, cid);
           this.$message.success('已取消下载任务');
-          // 重新加载任务列表
-          this.loadTasks();
+          await this.loadTasks();
         } else {
           this.$message.error(`取消任务失败: ${result.message || '未知错误'}`);
         }
       } catch (error) {
         console.error('取消下载任务失败', error);
         this.$message.error(`取消任务出错: ${error.message}`);
+      }
+    },
+
+    async pauseTask(task) {
+      try {
+        const result = await window.api.download.pauseDownload(task.avid, task.cid);
+        if (result.success) {
+          this.$message.success('下载已暂停');
+          await this.loadTasks();
+        } else {
+          this.$message.error(`暂停失败: ${result.message || '未知错误'}`);
+        }
+      } catch (error) {
+        console.error('暂停下载失败', error);
+        this.$message.error(`暂停下载出错: ${error.message}`);
+      }
+    },
+
+    async resumeTask(task) {
+      try {
+        const result = await window.api.download.resumeDownload(this.createDownloadItem(task));
+        if (result.success) {
+          this.$message.success('已继续下载');
+          await this.loadTasks();
+        } else {
+          this.$message.error(`继续下载失败: ${result.message || '未知错误'}`);
+        }
+      } catch (error) {
+        console.error('继续下载失败', error);
+        this.$message.error(`继续下载出错: ${error.message}`);
       }
     },
 
@@ -111,19 +155,20 @@ export default {
           cancelButtonText: '取消',
           type: 'warning'
         }).then(async () => {
-          const promises = [];
-
-          // 取消每个下载任务
-          for (const task of this.downloadingTasks) {
-            promises.push(
-              window.ipcRenderer.invoke('cancel-download', task.avid, task.cid)
-                .then(() => window.api.storage.removeDownloadingTask(task.avid, task.cid))
-            );
+          const results = await Promise.all(this.downloadingTasks.map(async task => {
+            const result = await window.api.download.cancelDownload(task.avid, task.cid);
+            if (result.success) {
+              await window.api.storage.removeDownloadingTask(task.avid, task.cid);
+            }
+            return result;
+          }));
+          const failedCount = results.filter(result => !result.success).length;
+          if (failedCount === 0) {
+            this.$message.success('已取消所有下载任务');
+          } else {
+            this.$message.warning(`${failedCount} 个任务无法取消`);
           }
-
-          await Promise.all(promises);
-          this.$message.success('已取消所有下载任务');
-          this.loadTasks();
+          await this.loadTasks();
         }).catch(() => {
           this.$message.info('已取消操作');
         });
@@ -136,23 +181,7 @@ export default {
     // 重试下载任务
     async retryTask(task) {
       try {
-        // 移除失败的任务
-        await window.api.storage.removeDownloadingTask(task.avid, task.cid);
-
-        // 重新创建下载任务
-        const downloadItem = {
-          avid: task.avid,
-          cid: task.cid,
-          title: task.title,
-          videoUrl: task.videoUrl,
-          audioUrl: task.audioUrl,
-          picUrl: task.picUrl,
-          isCompilations: task.isCompilations,
-          videoName: task.videoName
-        };
-
-        // 发送下载请求
-        const result = await window.ipcRenderer.invoke('start-download', downloadItem);
+        const result = await window.api.download.startDownload(this.createDownloadItem(task));
 
         if (result.success) {
           this.$message.success('已重新添加下载任务');
@@ -166,10 +195,29 @@ export default {
       }
     },
 
+    // 只传递 IPC 所需的普通字段，避免把 Vue 响应式代理传入 Electron。
+    createDownloadItem(task) {
+      return {
+        avid: task.avid,
+        cid: task.cid,
+        title: task.title,
+        videoUrl: task.videoUrl,
+        audioUrl: task.audioUrl,
+        picUrl: task.picUrl,
+        isCompilations: task.isCompilations,
+        videoName: task.videoName,
+        type: task.type,
+        completedParts: Array.isArray(task.completedParts) ? [...task.completedParts] : [],
+        downloadPhase: task.downloadPhase,
+        progress: task.progress
+      };
+    },
+
     // 获取状态文本
     getStatusText(status) {
       const statusMap = {
         'downloading': '下载中',
+        'paused': '已暂停',
         'merging': '合并中',
         'converting': '转换MP3中',  // 添加新状态
         'completed': '已完成',

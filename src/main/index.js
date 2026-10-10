@@ -227,7 +227,7 @@ app.whenReady().then(async () => {
   registerDataStorageHandlers();
 
   // 初始化下载管理器
-  initDownloadManager();
+  await initDownloadManager();
 
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);

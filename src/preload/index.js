@@ -58,8 +58,9 @@ const api = {
     selectDirectory: () => ipcRenderer.invoke('select-download-directory'),
     getDirectory: () => ipcRenderer.invoke('get-download-directory'),
     startDownload: (downloadItem) => ipcRenderer.invoke('start-download', downloadItem),
-    cancelDownload: (avid, cid) => ipcRenderer.invoke('cancel-download', avid, cid),
-    batchDownload: (items) => ipcRenderer.invoke('batch-download', items)
+    pauseDownload: (avid, cid) => ipcRenderer.invoke('pause-download', avid, cid),
+    resumeDownload: (downloadItem) => ipcRenderer.invoke('resume-download', downloadItem),
+    cancelDownload: (avid, cid) => ipcRenderer.invoke('cancel-download', avid, cid)
   },
 
   // 添加文件系统操作API
@@ -92,8 +93,9 @@ const ipcRendererAPI = {
       'get-download-directory',
       'select-download-directory',
       'start-download',
-      'cancel-download',
-      'batch-download'
+      'pause-download',
+      'resume-download',
+      'cancel-download'
     ];
 
     if (validChannels.includes(channel)) {

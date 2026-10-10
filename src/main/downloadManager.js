@@ -1,15 +1,24 @@
-import { app, dialog, ipcMain } from 'electron';
+import { dialog, ipcMain } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { downloadFile, mergeVideoAudio, downloadCover, deleteFile, setDownloadDir, getDownloadDir,convertToMp3 } from './downloadTools';
-import { addDownloadingTask, updateDownloadingTask, moveTaskToCompleted } from './dataStorage';
+import {
+  convertToMp3,
+  deleteFile,
+  downloadFile,
+  getDownloadDir,
+  mergeVideoAudio,
+  setDownloadDir
+} from './downloadTools';
+import {
+  addDownloadingTask,
+  getDownloadingTasks,
+  moveTaskToCompleted,
+  updateDownloadingTask
+} from './dataStorage';
 
-// 正在进行的下载任务
 const activeDownloads = new Map();
 
-// 初始化下载管理器
-export function initDownloadManager() {
-  // 选择下载目录
+export async function initDownloadManager() {
   ipcMain.handle('select-download-directory', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory'],
@@ -24,338 +33,343 @@ export function initDownloadManager() {
     return { success: false };
   });
 
-  // 获取当前下载目录
-  ipcMain.handle('get-download-directory', () => {
-    return getDownloadDir();
+  ipcMain.handle('get-download-directory', () => getDownloadDir());
+
+  ipcMain.handle('start-download', async (event, downloadItem) => {
+    const key = `${downloadItem.avid}-${downloadItem.cid}`;
+    if (activeDownloads.has(key)) {
+      return { success: false, message: '该任务已在下载队列中' };
+    }
+
+    const taskPromise = startDownload(downloadItem);
+
+    if (!activeDownloads.has(key)) {
+      return taskPromise;
+    }
+
+    taskPromise.catch(error => console.error('下载任务执行失败:', error));
+    return { success: true, message: '下载任务已添加' };
   });
 
-  // 开始下载
-  ipcMain.handle('start-download', async (event, downloadItem) => {
+  ipcMain.handle('pause-download', async (event, avid, cid) => {
+    const task = activeDownloads.get(`${avid}-${cid}`);
+    if (!task?.control) {
+      return { success: false, message: '当前下载阶段暂不支持暂停' };
+    }
+
     try {
-      // 先将任务添加到下载队列
-      const result = { success: true, message: '下载任务已添加' };
-
-      // 异步启动下载任务，不等待其完成
-      startDownload(downloadItem).catch(error => {
-        console.error('下载任务执行失败:', error);
-      });
-
-      // 立即返回成功结果
-      return result;
+      await task.control.pause();
+      await updateDownloadingTask(avid, cid, { status: 'paused' });
+      return { success: true };
     } catch (error) {
-      console.error('添加下载任务失败:', error);
-      return { success: false, error: error.message };
+      console.error('暂停下载失败:', error);
+      return { success: false, message: error.message };
     }
   });
 
-  // 取消下载
-  ipcMain.handle('cancel-download', async (event, avid, cid) => {
-    try {
-      const key = `${avid}-${cid}`;
-      if (activeDownloads.has(key)) {
-        const task = activeDownloads.get(key);
-        if (task.controller) {
-          task.controller.abort();
-        }
-        activeDownloads.delete(key);
-        return { success: true };
+  ipcMain.handle('resume-download', async (event, downloadItem) => {
+    const { avid, cid } = downloadItem;
+    const task = activeDownloads.get(`${avid}-${cid}`);
+
+    if (task) {
+      if (!task.control) {
+        return { success: false, message: '下载正在切换阶段，请稍后继续' };
       }
-      return { success: false, message: '未找到下载任务' };
+
+      try {
+        await task.control.resume();
+        await updateDownloadingTask(avid, cid, { status: 'downloading' });
+        return { success: true };
+      } catch (error) {
+        console.error('继续下载失败:', error);
+        return { success: false, message: error.message };
+      }
+    }
+
+    const taskPromise = startDownload(downloadItem);
+    if (!activeDownloads.has(`${avid}-${cid}`)) {
+      return taskPromise;
+    }
+    taskPromise.catch(error => console.error('恢复下载任务失败:', error));
+    return { success: true, message: '已继续下载' };
+  });
+
+  ipcMain.handle('cancel-download', async (event, avid, cid) => {
+    const key = `${avid}-${cid}`;
+    const task = activeDownloads.get(key);
+
+    if (!task) {
+      const tasks = await getDownloadingTasks();
+      return tasks.some(item => item.avid === avid && item.cid === cid)
+        ? { success: true }
+        : { success: false, message: '未找到下载任务' };
+    }
+
+    if (!task.control) {
+      return { success: false, message: '当前下载阶段无法取消，请稍后重试' };
+    }
+
+    try {
+      await task.control.cancel();
+      return { success: true };
     } catch (error) {
       console.error('取消下载失败:', error);
-      return { success: false, error: error.message };
+      return { success: false, message: error.message };
     }
   });
 
-  // 批量下载
-  ipcMain.handle('batch-download', async (event, items) => {
-    try {
-      const results = [];
-      for (const item of items) {
-        const result = await startDownload(item);
-        results.push(result);
-      }
-      return { success: true, results };
-    } catch (error) {
-      console.error('批量下载失败:', error);
-      return { success: false, error: error.message };
-    }
-  });
+  try {
+    const interruptedTasks = await getDownloadingTasks();
+    await Promise.all(interruptedTasks
+      .filter(task => ['downloading', 'merging', 'converting'].includes(task.status))
+      .map(task => updateDownloadingTask(task.avid, task.cid, { status: 'paused' })));
+  } catch (error) {
+    console.error('恢复未完成下载任务状态失败:', error);
+  }
 }
 
-/**
- * 开始下载任务
- * @param {object} item 下载项
- * @returns {Promise<object>} 下载结果
- */
 async function startDownload(item) {
-  const { avid, cid, title, videoUrl, audioUrl, picUrl, isCompilations, videoName, type } = item;
-
-  // 确保这些字段是确定的（非undefined）
+  const {
+    avid,
+    cid,
+    title,
+    videoUrl,
+    audioUrl,
+    picUrl,
+    isCompilations,
+    videoName,
+    type
+  } = item;
+  const downloadType = type || 'video';
   const isVideoCollection = isCompilations === true;
   const collectionName = videoName || '';
-
-  console.log('开始下载任务:', {
-    avid, cid, title, type,
-    isCompilations: isVideoCollection,
-    videoName: collectionName
-  });
-
-  // 判断是否已在下载队列
   const key = `${avid}-${cid}`;
+
   if (activeDownloads.has(key)) {
     return { success: false, message: '该任务已在下载队列中' };
   }
 
-  // 构建下载路径 - 确保是绝对路径
   let downloadDir = getDownloadDir();
-  console.log('基础下载目录:', downloadDir);
-
   if (isVideoCollection) {
-    // 合集视频，创建以合集名称命名的文件夹
     downloadDir = path.join(downloadDir, sanitizeFileName(collectionName));
-    console.log('合集下载目录:', downloadDir);
   }
-  // 确保下载目录存在
-  if (!fs.existsSync(downloadDir)) {
-    fs.mkdirSync(downloadDir, { recursive: true });
-  }
+  fs.mkdirSync(downloadDir, { recursive: true });
 
-  // 文件名处理（去除非法字符）
   const safeTitle = sanitizeFileName(title);
+  const completedParts = new Set(item.completedParts || []);
+  const taskState = {
+    control: null,
+    progress: item.progress || 0
+  };
+  activeDownloads.set(key, taskState);
 
-  // 创建AbortController用于取消下载
-  const controller = new AbortController();
-
-  // 添加到活跃下载列表
-  activeDownloads.set(key, { controller, progress: 0 });
-
-  // 提前声明所有需要的路径变量，使用let而不是const
-  let outputFilePath;  // 修改为let声明
-  let videoFilePath;
-  let audioFilePath;
-  let coverFilePath = picUrl ? path.resolve(downloadDir, `${safeTitle}.jpg`) : null;
+  let outputFilePath;
+  let completionData;
+  const cleanupAfterCompletion = [];
 
   try {
-    // 根据不同的下载类型执行不同的下载流程
-    switch (type) {
-      case 'audio':
-        // 仅下载音频
-        if (!audioUrl) {
-          throw new Error('音频URL不能为空');
-        }
+    if (downloadType === 'audio') {
+      if (!audioUrl) throw new Error('音频URL不能为空');
 
-        // 临时m4s音频文件路径
-        const tempAudioPath = path.resolve(downloadDir, `${safeTitle}.m4s`);
+      const tempAudioPath = path.resolve(downloadDir, `${safeTitle}.m4s`);
+      cleanupAfterCompletion.push(tempAudioPath);
+      outputFilePath = path.resolve(downloadDir, `${safeTitle}.mp3`);
+      await addDownloadingTask({
+        ...item,
+        avid,
+        cid,
+        title,
+        audioUrl,
+        outputFilePath,
+        completedParts: [...completedParts],
+        downloadPhase: item.downloadPhase || 'audio',
+        progress: item.progress || 0,
+        status: 'downloading',
+        type: 'audio'
+      });
 
-        // 设置最终MP3输出路径
-        outputFilePath = path.resolve(downloadDir, `${safeTitle}.mp3`);
-        console.log('音频输出路径:', outputFilePath);
-
-        // 添加到下载中任务
-        await addDownloadingTask({
-          avid,
-          cid,
-          title,
-          audioUrl,
-          outputFilePath,
-          progress: 0,
-          status: 'downloading',
-          type: 'audio'
-        });
-
-        // 下载音频 (m4s格式)
-        await downloadFile(audioUrl, tempAudioPath, (progress) => {
-          updateDownloadProgress(avid, cid, progress * 0.6); // 占总进度的60%
-        });
-
-        // 更新状态为转换中
+      if (!completedParts.has('audio')) {
+        await updateDownloadingTask(avid, cid, { downloadPhase: 'audio', status: 'downloading' });
+        await downloadFile(audioUrl, tempAudioPath, progress => {
+          return updateDownloadProgress(avid, cid, progress * 0.6);
+        }, control => { taskState.control = control; });
+        completedParts.add('audio');
         await updateDownloadingTask(avid, cid, {
-          status: 'converting',
-          progress: 60
+          completedParts: [...completedParts],
+          downloadPhase: 'converting',
+          status: 'converting'
         });
+      }
 
-        // 转换为MP3格式
-        await convertToMp3(tempAudioPath, outputFilePath, (progress) => {
-          updateDownloadProgress(avid, cid, 60 + progress * 0.4); // 占总进度的40%
+      await updateDownloadingTask(avid, cid, { downloadPhase: 'converting', status: 'converting' });
+      const convertProgress = createProgressUpdater(avid, cid, 60, 0.4);
+      await convertToMp3(tempAudioPath, outputFilePath, progress => {
+        convertProgress.onProgress(progress);
+      });
+      await convertProgress.flush();
+      completionData = { outputFilePath, status: 'completed', type: 'audio' };
+    } else if (downloadType === 'cover') {
+      if (!picUrl) throw new Error('封面URL不能为空');
+
+      outputFilePath = path.resolve(downloadDir, `${safeTitle}.jpg`);
+      await addDownloadingTask({
+        ...item,
+        avid,
+        cid,
+        title,
+        picUrl,
+        outputFilePath,
+        completedParts: [...completedParts],
+        downloadPhase: 'cover',
+        progress: item.progress || 0,
+        status: 'downloading',
+        type: 'cover'
+      });
+
+      if (!completedParts.has('cover')) {
+        await downloadFile(picUrl, outputFilePath, progress => {
+          return updateDownloadProgress(avid, cid, progress);
+        }, control => { taskState.control = control; });
+        completedParts.add('cover');
+        await updateDownloadingTask(avid, cid, { completedParts: [...completedParts] });
+      }
+
+      completionData = { outputFilePath, status: 'completed', type: 'cover' };
+    } else {
+      if (!videoUrl || !audioUrl) throw new Error('视频URL和音频URL不能为空');
+
+      const videoFilePath = path.resolve(downloadDir, `${safeTitle}_video.m4s`);
+      const audioFilePath = path.resolve(downloadDir, `${safeTitle}_audio.m4s`);
+      cleanupAfterCompletion.push(videoFilePath, audioFilePath);
+      outputFilePath = path.resolve(downloadDir, `${safeTitle}.mp4`);
+      await addDownloadingTask({
+        ...item,
+        avid,
+        cid,
+        title,
+        videoUrl,
+        audioUrl,
+        isCompilations: isVideoCollection,
+        videoName: collectionName,
+        outputFilePath,
+        completedParts: [...completedParts],
+        downloadPhase: item.downloadPhase || 'video',
+        progress: item.progress || 0,
+        status: 'downloading',
+        type: downloadType
+      });
+
+      if (!completedParts.has('video')) {
+        await updateDownloadingTask(avid, cid, { downloadPhase: 'video', status: 'downloading' });
+        await downloadFile(videoUrl, videoFilePath, progress => {
+          return updateDownloadProgress(avid, cid, progress * 0.4);
+        }, control => { taskState.control = control; });
+        completedParts.add('video');
+        await updateDownloadingTask(avid, cid, {
+          completedParts: [...completedParts],
+          downloadPhase: 'audio'
         });
+      }
 
-        // 删除临时m4s文件
-        await deleteFile(tempAudioPath);
-
-        // 移动到已完成
-        await moveTaskToCompleted(avid, cid, {
-          outputFilePath,
-          status: 'completed',
-          type: 'audio'
+      if (!completedParts.has('audio')) {
+        await updateDownloadingTask(avid, cid, { downloadPhase: 'audio', status: 'downloading' });
+        await downloadFile(audioUrl, audioFilePath, progress => {
+          return updateDownloadProgress(avid, cid, 40 + progress * 0.4);
+        }, control => { taskState.control = control; });
+        completedParts.add('audio');
+        await updateDownloadingTask(avid, cid, {
+          completedParts: [...completedParts],
+          downloadPhase: 'merging'
         });
-        break;
+      }
 
-      case 'cover':
-        // 仅下载封面
-        if (!picUrl) {
-          throw new Error('封面URL不能为空');
-        }
-
-        outputFilePath = coverFilePath; // 设置输出路径为封面路径
-
-        // 添加到下载中任务
-        await addDownloadingTask({
-          avid,
-          cid,
-          title,
-          picUrl,
-          outputFilePath,
-          progress: 0,
-          status: 'downloading',
-          type: 'cover'
-        });
-
-        // 下载封面
-        await downloadCover(picUrl, outputFilePath, (progress) => {
-          updateDownloadProgress(avid, cid, progress);
-        });
-
-        // 移动到已完成
-        await moveTaskToCompleted(avid, cid, {
-          outputFilePath,
-          status: 'completed',
-          type: 'cover'
-        });
-        break;
-
-      default:
-        // 默认下载完整视频（视频+音频）
-        if (!videoUrl || !audioUrl) {
-          throw new Error('视频URL和音频URL不能为空');
-        }
-
-        // 文件路径
-        videoFilePath = path.resolve(downloadDir, `${safeTitle}_video.m4s`);
-        audioFilePath = path.resolve(downloadDir, `${safeTitle}_audio.m4s`);
-        outputFilePath = path.resolve(downloadDir, `${safeTitle}.mp4`);
-
-        // 添加到下载中任务
-        await addDownloadingTask({
-          avid,
-          cid,
-          title,
-          videoUrl,
-          audioUrl,
-          isCompilations: isVideoCollection,
-          videoName: collectionName,
-          outputFilePath,
-          progress: 0,
-          status: 'downloading',
-          type: type || 'video' // 默认为视频类型
-        });
-
-        // 1. 下载视频
-        await downloadFile(videoUrl, videoFilePath, (progress) => {
-          updateDownloadProgress(avid, cid, progress * 0.4); // 占总进度的40%
-        });
-
-        // 2. 下载音频
-        await downloadFile(audioUrl, audioFilePath, (progress) => {
-          updateDownloadProgress(avid, cid, 40 + progress * 0.4); // 占总进度的40%
-        });
-
-        // 更新状态为合并中
-        await updateDownloadingTask(avid, cid, { status: 'merging' });
-
-        // 3. 合并音视频
-        await mergeVideoAudio(videoFilePath, audioFilePath, outputFilePath, (progress) => {
-          updateDownloadProgress(avid, cid, 80 + progress * 0.2); // 占总进度的20%
-        });
-
-        // 5. 清理临时文件
-        await Promise.all([
-          deleteFile(videoFilePath),
-          deleteFile(audioFilePath)
-        ]);
-
-        // 移动到已完成
-        await moveTaskToCompleted(avid, cid, {
-          outputFilePath,
-          status: 'completed',
-          type: type || 'video',
-          isCompilations: isVideoCollection,
-          videoName: collectionName
-        });
-        break;
+      await updateDownloadingTask(avid, cid, { downloadPhase: 'merging', status: 'merging' });
+      const mergeProgress = createProgressUpdater(avid, cid, 80, 0.2);
+      await mergeVideoAudio(videoFilePath, audioFilePath, outputFilePath, progress => {
+        mergeProgress.onProgress(progress);
+      });
+      await mergeProgress.flush();
+      completionData = {
+        outputFilePath,
+        status: 'completed',
+        type: downloadType,
+        isCompilations: isVideoCollection,
+        videoName: collectionName
+      };
     }
 
-    // 更新进度到100%
     await updateDownloadProgress(avid, cid, 100);
-
-    // 从活跃下载移除
+    await moveTaskToCompleted(avid, cid, completionData);
+    await Promise.all(cleanupAfterCompletion.map(deleteFile));
     activeDownloads.delete(key);
 
     return {
       success: true,
       outputFilePath,
-      coverPath: type === 'cover' ? outputFilePath : null
+      coverPath: downloadType === 'cover' ? outputFilePath : null
     };
-
   } catch (error) {
     console.error(`下载失败 [${title}]:`, error);
 
-    // 更新失败状态
-    await updateDownloadingTask(avid, cid, {
-      status: 'failed',
-      error: error.message
-    });
+    if (error.code === 'DOWNLOAD_CANCELLED') {
+      await Promise.all(cleanupAfterCompletion.map(deleteFile));
+    } else {
+      await updateDownloadingTask(avid, cid, {
+        status: 'failed',
+        error: error.message
+      });
+    }
 
-    // 从活跃下载移除
     activeDownloads.delete(key);
-
     return {
       success: false,
+      cancelled: error.code === 'DOWNLOAD_CANCELLED',
       error: error.message
     };
   }
 }
 
-/**
- * 更新下载进度
- * @param {string|number} avid 视频ID
- * @param {string|number} cid 分P ID
- * @param {number} progress 进度值（0-100）
- */
 async function updateDownloadProgress(avid, cid, progress) {
-  // 更新内存中的进度
   const key = `${avid}-${cid}`;
-  if (activeDownloads.has(key)) {
-    activeDownloads.get(key).progress = progress;
+  const roundedProgress = Math.round(progress);
+  const task = activeDownloads.get(key);
+  if (task) {
+    if (task.progress === roundedProgress) return;
+    task.progress = roundedProgress;
   }
 
-  // 更新数据库中的进度
   await updateDownloadingTask(avid, cid, {
-    progress: Math.round(progress)
+    progress: roundedProgress
   });
 }
 
-/**
- * 清理文件名中的非法字符
- * @param {string} filename 原始文件名
- * @returns {string} 处理后的文件名
- */
+function createProgressUpdater(avid, cid, offset, scale) {
+  let lastProgress = null;
+  let pendingUpdate = Promise.resolve();
+
+  return {
+    onProgress(progress) {
+      const nextProgress = Math.round(offset + progress * scale);
+      if (nextProgress === lastProgress) return;
+      lastProgress = nextProgress;
+      pendingUpdate = pendingUpdate.then(() => updateDownloadProgress(avid, cid, nextProgress));
+    },
+    flush() {
+      return pendingUpdate;
+    }
+  };
+}
+
 function sanitizeFileName(filename) {
   if (!filename) return 'unnamed';
 
-  // 处理文本可能的编码问题
-  try {
-    // 尝试检测是否有乱码
-    if (/\uFFFD/.test(filename) || /銆/.test(filename)) {
-      // 如果检测到乱码字符，尝试简单替换
-      filename = filename.replace(/銆|€|鈥爓/g, '');
-    }
-  } catch (e) {
-    console.error('处理文件名编码错误:', e);
+  let normalizedName = String(filename);
+  if (/\uFFFD|銆/.test(normalizedName)) {
+    normalizedName = normalizedName.replace(/銆|€|鈥爓/g, '');
   }
 
-  return filename
-    .replace(/[\\/:*?"<>|]/g, '_') // 替换Windows下的非法字符
-    .replace(/\s+/g, ' ')          // 多个空格替换为单个
-    .trim();                        // 移除首尾空格
+  return normalizedName
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim() || 'unnamed';
 }

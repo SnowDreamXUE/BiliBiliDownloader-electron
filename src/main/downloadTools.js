@@ -1,8 +1,10 @@
 import { app } from 'electron';
 import { spawn } from 'child_process';
+import http from 'http';
+import net from 'net';
 import path from 'path';
 import fs from 'fs';
-import os from 'os'; // 用于获取系统临时目录
+import { randomBytes } from 'crypto';
 
 // 工具路径配置
 const NODE_ENV = process.env.NODE_ENV || 'production';
@@ -10,7 +12,7 @@ const aria2cPath = "/assets/aria2c.exe";
 const ffmpegPath = "/assets/ffmpeg.exe";
 
 const getResourcePath = () => {
-  let resourcePath = app.getAppPath();
+  const resourcePath = app.getAppPath();
   if (NODE_ENV !== 'development') {
     return process.resourcesPath;
   }
@@ -91,111 +93,238 @@ function moveFile(sourcePath, targetPath) {
   });
 }
 
+function getAvailablePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      server.close(error => error ? reject(error) : resolve(port));
+    });
+  });
+}
+
+function callAria2Rpc(port, secret, method, params = []) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({
+      jsonrpc: '2.0',
+      id: randomBytes(8).toString('hex'),
+      method: `aria2.${method}`,
+      params: [`token:${secret}`, ...params]
+    });
+
+    const request = http.request({
+      host: '127.0.0.1',
+      port,
+      path: '/jsonrpc',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    }, response => {
+      let responseBody = '';
+      response.setEncoding('utf8');
+      response.on('data', chunk => { responseBody += chunk; });
+      response.on('end', () => {
+        try {
+          const result = JSON.parse(responseBody);
+          if (result.error) {
+            reject(new Error(result.error.message || 'aria2 RPC 请求失败'));
+          } else {
+            resolve(result.result);
+          }
+        } catch (error) {
+          reject(new Error(`解析 aria2 RPC 响应失败: ${error.message}`));
+        }
+      });
+    });
+
+    request.setTimeout(3000, () => request.destroy(new Error('aria2 RPC 请求超时')));
+    request.once('error', reject);
+    request.end(body);
+  });
+}
+
+function wait(milliseconds) {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+async function waitForAria2(aria2c, port, secret, getSpawnError) {
+  const deadline = Date.now() + 10000;
+  let lastError;
+
+  while (Date.now() < deadline) {
+    const spawnError = getSpawnError();
+    if (spawnError) {
+      throw new Error(`启动 aria2c 失败: ${spawnError.message}`);
+    }
+    if (aria2c.exitCode !== null) {
+      throw new Error(`aria2c 提前退出，退出码: ${aria2c.exitCode}`);
+    }
+
+    try {
+      await callAria2Rpc(port, secret, 'getVersion');
+      return;
+    } catch (error) {
+      lastError = error;
+      await wait(150);
+    }
+  }
+
+  throw new Error(`等待 aria2 RPC 启动超时: ${lastError?.message || '未知错误'}`);
+}
+
+async function stopAria2(aria2c, port, secret) {
+  if (aria2c.exitCode !== null || aria2c.signalCode !== null) return;
+
+  const closed = new Promise(resolve => {
+    if (aria2c.exitCode !== null || aria2c.signalCode !== null) {
+      resolve();
+    } else {
+      aria2c.once('close', resolve);
+    }
+  });
+
+  try {
+    await callAria2Rpc(port, secret, 'shutdown');
+  } catch {
+    aria2c.kill();
+  }
+
+  await Promise.race([
+    closed,
+    wait(1500)
+  ]);
+
+  if (aria2c.exitCode === null && aria2c.signalCode === null) {
+    aria2c.kill();
+  }
+}
+
+function createDownloadError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
 /**
- * 使用aria2c下载文件到临时目录，然后移动到最终位置
+ * 使用 aria2c 的本地 RPC 下载文件，暂停时保留 aria2 分片和控制文件以便继续。
  * @param {string} url 下载链接
  * @param {string} finalPath 最终保存路径
  * @param {function} progressCallback 进度回调函数
+ * @param {function} controlCallback 接收暂停、继续和取消控制对象
  * @returns {Promise<object>} 下载结果
  */
-export function downloadFile(url, finalPath, progressCallback = null) {
-  return new Promise(async (resolve, reject) => {
-    // 创建一个临时文件名，避免所有路径问题
-    const tempDir = os.tmpdir();
-    const tempFileName = `bili_temp_${Date.now()}_${Math.random().toString(36).substring(2, 10)}.tmp`;
-    const tempFilePath = path.join(tempDir, tempFileName);
+export async function downloadFile(url, finalPath, progressCallback = null, controlCallback = null) {
+  const finalDir = path.dirname(finalPath);
+  ensureDownloadDirExists(finalDir);
 
-    console.log('下载文件到临时路径:', tempFilePath);
-    console.log('最终目标路径:', finalPath);
+  const partialPath = `${finalPath}.part`;
+  const partialName = path.basename(partialPath);
+  const port = await getAvailablePort();
+  const secret = randomBytes(24).toString('hex');
+  const aria2c = spawn(getAria2cPath(), [
+    '--no-conf=true',
+    '--enable-rpc=true',
+    '--rpc-listen-all=false',
+    `--rpc-listen-port=${port}`,
+    `--rpc-secret=${secret}`,
+    '--console-log-level=warn',
+    '--file-allocation=none',
+    '--continue=true',
+    '--allow-overwrite=true',
+    '--auto-file-renaming=false',
+    `--stop-with-process=${process.pid}`,
+    '--header=User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    '--header=Referer: https://www.bilibili.com/'
+  ], { windowsHide: true, stdio: 'ignore' });
+  aria2c.unref();
+  let spawnError;
+  aria2c.on('error', error => { spawnError = error; });
 
-    // 确保目标目录存在
-    try {
-      const finalDir = path.dirname(finalPath);
-      if (!fs.existsSync(finalDir)) {
-        fs.mkdirSync(finalDir, { recursive: true });
-        console.log('已创建目标目录:', finalDir);
+  let gid;
+  let cancelled = false;
+  let lastProgressUpdate = 0;
+  const control = {
+    pause: async () => {
+      if (gid) await callAria2Rpc(port, secret, 'pause', [gid]);
+    },
+    resume: async () => {
+      if (gid) await callAria2Rpc(port, secret, 'unpause', [gid]);
+    },
+    cancel: async () => {
+      cancelled = true;
+      if (gid) {
+        try {
+          await callAria2Rpc(port, secret, 'forceRemove', [gid]);
+        } catch {
+          // 下载可能已经结束，仍然继续清理本地分片。
+        }
       }
-    } catch (dirError) {
-      console.error('创建目标目录失败:', dirError);
-      reject(new Error(`创建目标目录失败: ${dirError.message}`));
-      return;
+    }
+  };
+
+  try {
+    await waitForAria2(aria2c, port, secret, () => spawnError);
+    gid = await callAria2Rpc(port, secret, 'addUri', [[url], {
+      dir: finalDir,
+      out: partialName,
+      'max-connection-per-server': '16',
+      split: '16',
+      'min-split-size': '1M',
+      'continue': 'true',
+      'allow-overwrite': 'true',
+      'auto-file-renaming': 'false'
+    }]);
+    if (controlCallback) controlCallback(control);
+
+    while (true) {
+      await wait(500);
+      if (cancelled) {
+        throw createDownloadError('下载已取消', 'DOWNLOAD_CANCELLED');
+      }
+
+      const status = await callAria2Rpc(port, secret, 'tellStatus', [gid, [
+        'status', 'totalLength', 'completedLength', 'errorMessage'
+      ]]);
+
+      const totalLength = Number(status.totalLength);
+      const completedLength = Number(status.completedLength);
+      if (progressCallback && totalLength > 0 && Date.now() - lastProgressUpdate >= 1000) {
+        await progressCallback(Math.min(99, (completedLength / totalLength) * 100));
+        lastProgressUpdate = Date.now();
+      }
+
+      if (status.status === 'complete') break;
+      if (status.status === 'error') {
+        throw new Error(`aria2c 下载失败: ${status.errorMessage || '未知错误'}`);
+      }
+      if (status.status === 'removed') {
+        throw createDownloadError('下载已取消', 'DOWNLOAD_CANCELLED');
+      }
     }
 
-    try {
-      // aria2c参数
-      const args = [
-        url,
-        `--dir=${tempDir}`,          // 设置下载目录
-        `--out=${tempFileName}`,     // 设置输出文件名，不是完整路径
-        '--max-connection-per-server=16',
-        '--split=16',
-        '--min-split-size=1M',
-        '--console-log-level=notice',
-        '--download-result=full',
-        '--allow-overwrite=true'     // 允许覆盖已存在文件
-      ];
+    await stopAria2(aria2c, port, secret);
+    await moveFile(partialPath, finalPath);
+    if (progressCallback) await progressCallback(100);
 
-      // 添加用于B站的请求头
-      args.push('--header=User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-      args.push('--header=Referer: https://www.bilibili.com/');
+    return { success: true, filePath: finalPath, progress: 100 };
+  } catch (error) {
+    await stopAria2(aria2c, port, secret);
 
-      console.log('执行aria2c下载，命令:', getAria2cPath(), args.join(' '));
-
-      const aria2c = spawn(getAria2cPath(), args);
-
-      let lastProgress = 0;
-      let error = '';
-
-      aria2c.stdout.on('data', (data) => {
-        const output = data.toString();
-        console.log('aria2c stdout:', output);
-
-        // 解析下载进度
-        if (progressCallback) {
-          const progressMatch = output.match(/\(([0-9.]+)%\)/);
-          if (progressMatch && progressMatch[1]) {
-            const progress = parseFloat(progressMatch[1]);
-            if (progress > lastProgress) {
-              lastProgress = progress;
-              progressCallback(progress);
-            }
-          }
-        }
-      });
-
-      aria2c.stderr.on('data', (data) => {
-        error += data.toString();
-        console.error('aria2c stderr:', data.toString());
-      });
-
-      aria2c.on('close', async (code) => {
-        if (code === 0) {
-          try {
-            // 下载成功，现在将文件从临时目录移动到最终位置
-            await moveFile(tempFilePath, finalPath);
-            console.log('成功将文件从临时目录移动到:', finalPath);
-            resolve({
-              success: true,
-              filePath: finalPath,
-              progress: 100
-            });
-          } catch (moveError) {
-            console.error('移动文件失败:', moveError);
-            reject(new Error(`移动文件失败: ${moveError.message}`));
-          }
-        } else {
-          reject(new Error(`aria2c 下载失败，退出码: ${code}, 错误: ${error}`));
-        }
-      });
-
-      aria2c.on('error', (err) => {
-        reject(new Error(`启动 aria2c 失败: ${err.message}`));
-      });
-    } catch (error) {
-      console.error('下载过程出错:', error);
-      reject(error);
+    if (cancelled) {
+      await Promise.all([
+        deleteFile(partialPath),
+        deleteFile(`${partialPath}.aria2`)
+      ]);
+      throw createDownloadError('下载已取消', 'DOWNLOAD_CANCELLED');
     }
-  });
+
+    throw error;
+  } finally {
+    if (controlCallback) controlCallback(null);
+  }
 }
 
 /**
@@ -225,19 +354,13 @@ export function mergeVideoAudio(videoPath, audioPath, outputPath, progressCallba
 
     console.log('执行ffmpeg合并，命令:', getFfmpegPath(), args.join(' '));
 
-    const ffmpeg = spawn(getFfmpegPath(), args);
+    const ffmpeg = spawn(getFfmpegPath(), args, { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
 
     let error = '';
     let duration = 0;
-    let currentTime = 0;
-
-    ffmpeg.stdout.on('data', (data) => {
-      console.log('ffmpeg stdout:', data.toString());
-    });
-
     ffmpeg.stderr.on('data', (data) => {
       const output = data.toString();
-      console.log('ffmpeg stderr:', output);
+      error = `${error}${output}`.slice(-2000);
 
       // 尝试解析总时长
       const durationMatch = output.match(/Duration: ([0-9]+):([0-9]+):([0-9]+)/);
@@ -254,7 +377,7 @@ export function mergeVideoAudio(videoPath, audioPath, outputPath, progressCallba
         const hours = parseInt(timeMatch[1]);
         const minutes = parseInt(timeMatch[2]);
         const seconds = parseInt(timeMatch[3]);
-        currentTime = hours * 3600 + minutes * 60 + seconds;
+        const currentTime = hours * 3600 + minutes * 60 + seconds;
         const progress = Math.min(Math.round((currentTime / duration) * 100), 100);
         progressCallback(progress);
       }
@@ -301,19 +424,13 @@ export function convertToMp3(inputPath, outputPath, progressCallback = null) {
 
     console.log('执行ffmpeg转换MP3，命令:', getFfmpegPath(), args.join(' '));
 
-    const ffmpeg = spawn(getFfmpegPath(), args);
+    const ffmpeg = spawn(getFfmpegPath(), args, { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
 
     let error = '';
     let duration = 0;
-    let currentTime = 0;
-
-    ffmpeg.stdout.on('data', (data) => {
-      console.log('ffmpeg stdout:', data.toString());
-    });
-
     ffmpeg.stderr.on('data', (data) => {
       const output = data.toString();
-      console.log('ffmpeg stderr:', output);
+      error = `${error}${output}`.slice(-2000);
 
       // 尝试解析总时长
       const durationMatch = output.match(/Duration: ([0-9]+):([0-9]+):([0-9]+)/);
@@ -330,7 +447,7 @@ export function convertToMp3(inputPath, outputPath, progressCallback = null) {
         const hours = parseInt(timeMatch[1]);
         const minutes = parseInt(timeMatch[2]);
         const seconds = parseInt(timeMatch[3]);
-        currentTime = hours * 3600 + minutes * 60 + seconds;
+        const currentTime = hours * 3600 + minutes * 60 + seconds;
         const progress = Math.min(Math.round((currentTime / duration) * 100), 100);
         progressCallback(progress);
       }
@@ -351,17 +468,6 @@ export function convertToMp3(inputPath, outputPath, progressCallback = null) {
       reject(new Error(`启动 ffmpeg 失败: ${err.message}`));
     });
   });
-}
-
-/**
- * 下载封面图片
- * @param {string} url 图片URL
- * @param {string} outputPath 保存路径
- * @param {function} progressCallback 进度回调
- * @returns {Promise<object>} 下载结果
- */
-export function downloadCover(url, outputPath, progressCallback = null) {
-  return downloadFile(url, outputPath, progressCallback);
 }
 
 /**

@@ -8,6 +8,7 @@ const DATA_DIR = path.join(app.getPath('userData'), 'data');
 const DOWNLOADS_INFO_FILE = path.join(DATA_DIR, 'downloads-info.json');
 const DOWNLOADING_FILE = path.join(DATA_DIR, 'downloading.json');
 const COMPLETED_FILE = path.join(DATA_DIR, 'completed.json');
+let downloadingTaskUpdateQueue = Promise.resolve();
 
 // 确保数据目录存在
 function ensureDataDirExists() {
@@ -165,6 +166,7 @@ export async function addDownloadingTask(task) {
       ...taskWithDetails,
       isCompilations: taskWithDetails.isCompilations || existingTask.isCompilations,
       videoName: taskWithDetails.videoName || existingTask.videoName,
+      createdAt: existingTask.createdAt || taskWithDetails.createdAt,
       updatedAt: new Date().toISOString()
     };
   } else {
@@ -176,33 +178,43 @@ export async function addDownloadingTask(task) {
 }
 
 export async function updateDownloadingTask(avid, cid, updateData) {
-  const tasks = await getDownloadingTasks();
-  const taskIndex = tasks.findIndex(task => task.avid === avid && task.cid === cid);
+  const operation = downloadingTaskUpdateQueue.then(async () => {
+    const tasks = await getDownloadingTasks();
+    const taskIndex = tasks.findIndex(task => task.avid === avid && task.cid === cid);
 
-  if (taskIndex === -1) {
-    return { success: false, message: '未找到指定的下载任务' };
-  }
+    if (taskIndex === -1) {
+      return { success: false, message: '未找到指定的下载任务' };
+    }
 
-  tasks[taskIndex] = {
-    ...tasks[taskIndex],
-    ...updateData,
-    updatedAt: new Date().toISOString()
-  };
+    tasks[taskIndex] = {
+      ...tasks[taskIndex],
+      ...updateData,
+      updatedAt: new Date().toISOString()
+    };
 
-  await writeJsonFile(DOWNLOADING_FILE, tasks);
-  return { success: true };
+    await writeJsonFile(DOWNLOADING_FILE, tasks);
+    return { success: true };
+  });
+
+  downloadingTaskUpdateQueue = operation.catch(() => {});
+  return operation;
 }
 
 export async function removeDownloadingTask(avid, cid) {
-  const tasks = await getDownloadingTasks();
-  const newTasks = tasks.filter(task => !(task.avid === avid && task.cid === cid));
+  const operation = downloadingTaskUpdateQueue.then(async () => {
+    const tasks = await getDownloadingTasks();
+    const newTasks = tasks.filter(task => !(task.avid === avid && task.cid === cid));
 
-  if (tasks.length === newTasks.length) {
-    return { success: false, message: '未找到指定的下载任务' };
-  }
+    if (tasks.length === newTasks.length) {
+      return { success: false, message: '未找到指定的下载任务' };
+    }
 
-  await writeJsonFile(DOWNLOADING_FILE, newTasks);
-  return { success: true };
+    await writeJsonFile(DOWNLOADING_FILE, newTasks);
+    return { success: true };
+  });
+
+  downloadingTaskUpdateQueue = operation.catch(() => {});
+  return operation;
 }
 
 // === 已完成的任务管理 ===
