@@ -2,9 +2,7 @@
   <div class="download-page">
     <header class="download-header">
       <div class="download-heading">
-        <div class="page-label"><span></span>视频库</div>
         <h1>下载管理</h1>
-        <p>查看待处理内容、传输进度和本地存档。</p>
       </div>
       <el-menu
         :default-active="route.path"
@@ -50,44 +48,21 @@ export default {
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  min-height: 150px;
-  padding: 30px clamp(28px, 5vw, 64px) 0;
-}
-
-.page-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 9px;
-  color: #687585;
-  font-size: 11px;
-}
-
-.page-label span {
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  background: #fb7299;
-  transform: rotate(45deg);
+  min-height: 112px;
+  padding: 20px clamp(28px, 5vw, 64px) 0;
 }
 
 .download-heading h1 {
-  margin: 0;
+  margin: 0 0 12px;
   color: #1e2a37;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 680;
   letter-spacing: -0.035em;
 }
 
-.download-heading p {
-  margin: 8px 0 18px;
-  color: #798594;
-  font-size: 12px;
-}
-
 .download-tabs {
   flex: 0 0 auto;
-  min-width: 300px;
+  min-width: 270px;
   border-bottom: 0;
   background: transparent;
 }
@@ -125,10 +100,6 @@ export default {
     flex-direction: column;
     gap: 0;
     padding-top: 24px;
-  }
-
-  .download-heading p {
-    margin-bottom: 8px;
   }
 
   .download-tabs {

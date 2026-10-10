@@ -1,32 +1,27 @@
 <template>
   <div class="waiting-view">
     <header class="waiting-toolbar">
-      <div class="waiting-title">
-        <h2>待下载列表</h2>
-        <span>选择保存位置与媒体质量</span>
-      </div>
-      <div class="download-action">
-        <el-button class="path-button" @click="selectDownloadPath">
+      <div class="path-setting">
+        <el-button
+          class="path-button"
+          @click="selectDownloadPath"
+        >
           <el-icon><FolderOpened /></el-icon>
-          <span>{{ downloadPath || "选择保存位置" }}</span>
+          <span>选择保存目录</span>
         </el-button>
-        <el-button v-if="downloadInfo.length" type="primary" @click="downloadAll">全部下载</el-button>
-        <el-button v-if="downloadInfo.length" class="clear-button" @click="clearAll">清空</el-button>
+        <span class="path-value" :title="downloadPath || '未设置'">
+          {{ downloadPath || "未设置" }}
+        </span>
+      </div>
+      <div v-if="downloadInfo.length" class="download-action">
+        <el-button type="primary" @click="downloadAll">全部下载</el-button>
+        <el-button class="clear-button" @click="clearAll">清空</el-button>
       </div>
     </header>
 
-    <div v-if="downloadPath" class="download-path">
-      <span>保存位置</span>
-      <strong :title="downloadPath">{{ downloadPath }}</strong>
-    </div>
-
     <div v-if="downloadInfo.length === 0" class="empty-state">
-      <div class="empty-symbol" aria-hidden="true">
-        <span></span><i></i>
-      </div>
-      <h3>待下载列表还是空的</h3>
-      <p>解析视频后，分集和清晰度会显示在这里。</p>
-      <el-button type="primary" plain @click="$router.push('/search')">解析新视频</el-button>
+      <h3>暂无待下载内容</h3>
+      <el-button type="primary" plain @click="$router.push('/search')">解析视频</el-button>
     </div>
 
     <div v-else class="download-info">
@@ -127,7 +122,7 @@ export default {
     async getDownloadDirectory() {
       try {
         const path = await window.api.download.getDirectory();
-        this.downloadPath = path || "请选择下载路径";
+        this.downloadPath = path || "";
       } catch (error) {
         console.error("获取下载路径失败", error);
         this.$message.error(`获取下载路径失败: ${error.message}`);
@@ -458,7 +453,7 @@ export default {
   width: 100%;
   height: 100%;
   min-height: 0;
-  padding: 0 clamp(24px, 5vw, 64px) 28px;
+  padding: 0 clamp(28px, 5vw, 64px) 28px;
   overflow: hidden;
 }
 
@@ -467,42 +462,45 @@ export default {
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  min-height: 66px;
+  gap: 16px;
+  min-height: 58px;
   border-bottom: 1px solid #e2e7ed;
 }
 
-.waiting-title h2 {
-  margin: 0;
-  color: #2b3745;
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.waiting-title span {
-  display: block;
-  margin-top: 5px;
-  color: #8793a0;
-  font-size: 11px;
+.path-setting {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .download-action {
   display: flex;
   align-items: center;
-  gap: 7px;
-  min-width: 0;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .path-button {
-  max-width: 310px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 36px;
+  border-color: #dfe5ec;
   color: #596575;
 }
 
-.path-button :deep(.el-button__text),
-.path-button span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.path-button :deep(.el-icon) {
+  margin-right: 7px;
+}
+
+.path-value {
+  flex: 1;
+  min-width: 0;
+  color: #687585;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .clear-button {
@@ -611,25 +609,6 @@ export default {
   width: 150px;
 }
 
-.download-path {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 11px 0 2px;
-  color: #84909d;
-  font-size: 10px;
-}
-
-.download-path strong {
-  min-width: 0;
-  overflow: hidden;
-  color: #657180;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .empty-state {
   display: flex;
   flex: 1;
@@ -637,72 +616,18 @@ export default {
   align-items: center;
   justify-content: center;
   min-height: 250px;
-  padding-bottom: 35px;
+  gap: 14px;
   text-align: center;
-}
-
-.empty-symbol {
-  position: relative;
-  width: 54px;
-  height: 42px;
-  margin-bottom: 17px;
-  border: 1px solid #d9e0e7;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.empty-symbol::before {
-  position: absolute;
-  top: -6px;
-  left: 5px;
-  width: 17px;
-  height: 8px;
-  border: 1px solid #d9e0e7;
-  border-bottom: 0;
-  border-radius: 4px 4px 0 0;
-  background: #fff;
-  content: "";
-}
-
-.empty-symbol span {
-  position: absolute;
-  top: 17px;
-  left: 20px;
-  width: 0;
-  height: 0;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-left: 8px solid #fb7299;
-}
-
-.empty-symbol i {
-  position: absolute;
-  right: 8px;
-  bottom: 7px;
-  left: 8px;
-  height: 1px;
-  background: #e8ecf0;
 }
 
 .empty-state h3 {
   margin: 0;
   color: #354150;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
-.empty-state p {
-  margin: 8px 0 16px;
-  color: #8994a1;
-  font-size: 11px;
-}
-
 @media (max-width: 900px) {
-  .waiting-view {
-    padding-right: 22px;
-    padding-left: 22px;
-  }
-
   .download-item-top {
     align-items: flex-start;
     flex-direction: column;
@@ -716,17 +641,26 @@ export default {
   .download-action {
     gap: 4px;
   }
-
-  .path-button {
-    max-width: 180px;
-  }
 }
 
 @media (max-width: 650px) {
   .waiting-toolbar {
-    align-items: flex-start;
+    align-items: stretch;
     flex-direction: column;
     padding: 10px 0;
+  }
+
+  .path-setting {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .path-value {
+    flex-basis: 100%;
+  }
+
+  .download-action {
+    justify-content: flex-end;
   }
 
   .download-item {

@@ -1,30 +1,23 @@
 <template>
   <div class="login-page">
     <header class="login-heading">
-      <div class="page-label"><span></span>账号与权限</div>
       <h1>账号登录</h1>
-      <p>登录哔哩哔哩账号后，可以访问账号授权的视频内容。</p>
     </header>
 
     <el-card class="login-card" shadow="never">
       <div v-if="isLoggedIn" class="user-info">
-        <el-avatar :size="58" :src="face"></el-avatar>
+        <el-avatar :size="42" :src="face"></el-avatar>
         <div class="user-copy">
-          <span>当前已登录</span>
           <strong>{{ uname }}</strong>
         </div>
         <el-button @click="logout">退出登录</el-button>
       </div>
       <div v-else class="login-controls">
-        <div>
-          <h2>使用手机扫码</h2>
-          <p>打开哔哩哔哩客户端，扫描二维码完成授权。</p>
-        </div>
         <div class="login-btns">
           <el-button type="primary" @click="login_url" :loading="isGenerating">
-            {{ isGenerating ? '生成中...' : '生成登录二维码' }}
+            {{ isGenerating ? '生成中' : (showQrcode ? '刷新二维码' : '生成二维码') }}
           </el-button>
-          <el-button @click="stopCheck" :disabled="!pollingIntervalId">停止检查</el-button>
+          <el-button v-if="pollingIntervalId" @click="stopCheck">停止</el-button>
         </div>
       </div>
 
@@ -320,72 +313,47 @@ export default {
 .login-page {
   display: flex;
   flex-direction: column;
-  width: min(100%, 820px);
+  width: 100%;
   min-height: 100%;
-  padding: 54px 34px;
-  margin: 0 auto;
+  padding: 0 clamp(28px, 5vw, 64px) 40px;
 }
 
-.page-label {
+.login-heading,
+.login-card {
+  width: 100%;
+  margin: 0;
+}
+
+.login-heading {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-  color: #687585;
-  font-size: 11px;
-}
-
-.page-label span {
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  background: #fb7299;
-  transform: rotate(45deg);
+  align-items: flex-end;
+  min-height: 112px;
+  padding-top: 20px;
 }
 
 .login-heading h1 {
-  margin: 0;
+  margin: 0 0 12px;
   color: #1e2a37;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 680;
   letter-spacing: -0.035em;
 }
 
-.login-heading p {
-  margin: 9px 0 24px;
-  color: #798594;
-  font-size: 12px;
-}
-
 .login-card {
   border: 1px solid #e3e8ee;
-  border-radius: 12px;
+  border-radius: 11px;
   background: #fff;
 }
 
 .login-card :deep(.el-card__body) {
-  padding: 24px;
+  padding: 18px;
 }
 
 .login-controls {
   display: flex;
-  justify-content: space-around;
+  justify-content: flex-start;
   align-items: center;
-  gap: 24px;
-  min-height: 92px;
-}
-
-.login-controls h2 {
-  margin: 0;
-  color: #2b3745;
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.login-controls p {
-  margin: 8px 0 0;
-  color: #84909d;
-  font-size: 11px;
+  min-height: 42px;
 }
 
 .login-btns {
@@ -397,21 +365,14 @@ export default {
 .user-info {
   display: flex;
   align-items: center;
-  gap: 15px;
-  min-height: 72px;
+  gap: 12px;
+  min-height: 52px;
 }
 
 .user-copy {
   display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: 5px;
   min-width: 0;
-}
-
-.user-copy span {
-  color: #8793a0;
-  font-size: 11px;
 }
 
 .user-copy strong {
@@ -427,15 +388,12 @@ export default {
   flex-direction: column;
   align-items: center;
   width: fit-content;
-  padding: 18px 22px 14px;
-  margin: 22px auto 0;
-  border: 1px solid #edf0f3;
-  border-radius: 10px;
-  background: #fafbfc;
+  padding-top: 18px;
+  margin: 0 auto;
 }
 
 .qrcode-status {
-  margin-top: 11px;
+  margin-top: 8px;
   color: #6f7b89;
   font-size: 11px;
 }
@@ -446,14 +404,20 @@ export default {
   border-radius: 5px;
 }
 
+@media (max-width: 860px) {
+  .login-heading {
+    align-items: flex-start;
+    padding-top: 24px;
+  }
+}
+
 @media (max-width: 760px) {
   .login-page {
-    padding: 34px 22px;
+    padding-bottom: 34px;
   }
 
   .login-controls {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
   }
 
   .login-btns {

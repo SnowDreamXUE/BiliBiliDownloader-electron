@@ -1,18 +1,7 @@
 <template>
   <div class="search-page">
     <header class="search-intro">
-      <div class="search-intro-copy">
-        <div class="page-label"><span></span>视频解析</div>
-        <h1>把视频带回本地</h1>
-        <p>粘贴哔哩哔哩链接，选择分集与清晰度，再加入下载列表。</p>
-      </div>
-      <div class="media-stamp" aria-hidden="true">
-        <div class="media-screen">
-          <span class="play-mark"></span>
-          <span class="screen-timeline"><i></i></span>
-        </div>
-        <span>本地媒体</span>
-      </div>
+      <h1>视频解析</h1>
     </header>
 
     <section class="search-panel">
@@ -24,7 +13,7 @@
           v-model="videoUrl"
           class="custom-input"
           clearable
-          placeholder="粘贴 BV、av 或 b23.tv 链接"
+          placeholder="粘贴哔哩哔哩视频链接"
           @input="change"
           @keyup.enter="search"
         ></el-input>
@@ -32,7 +21,6 @@
           解析视频
         </el-button>
       </div>
-      <div class="search-hint">支持哔哩哔哩视频链接与短链接</div>
     </section>
 
     <section v-if="pages.length > 0" class="select-wrapper">
@@ -305,136 +293,45 @@ export default {
 .search-page {
   width: 100%;
   min-height: 100%;
-  padding: 52px clamp(28px, 6vw, 76px) 48px;
+  padding: 0 clamp(28px, 5vw, 64px) 40px;
   overflow: auto;
 }
 
 .search-intro,
 .search-panel,
 .select-wrapper {
-  width: min(100%, 900px);
-  margin-right: auto;
-  margin-left: auto;
+  width: 100%;
 }
 
 .search-intro {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 142px;
-  margin-bottom: 26px;
-}
-
-.page-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 13px;
-  color: #687585;
-  font-size: 12px;
-}
-
-.page-label span {
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  background: #fb7299;
-  transform: rotate(45deg);
+  align-items: flex-end;
+  min-height: 112px;
+  padding-top: 20px;
 }
 
 .search-intro h1 {
-  margin: 0;
+  margin: 0 0 12px;
   color: #1e2a37;
-  font-size: clamp(26px, 3vw, 34px);
+  font-size: 24px;
   font-weight: 680;
-  letter-spacing: -0.04em;
-  line-height: 1.25;
-}
-
-.search-intro p {
-  margin: 11px 0 0;
-  color: #758292;
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.media-stamp {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  width: 132px;
-  margin-right: 18px;
-  color: #8a96a4;
-  font-size: 10px;
-}
-
-.media-screen {
-  position: relative;
-  display: grid;
-  width: 86px;
-  height: 58px;
-  place-items: center;
-  border: 1px solid #dbe1e8;
-  border-radius: 11px;
-  background: linear-gradient(145deg, #fff 0 55%, #f9e6eb 55% 100%);
-  box-shadow: 0 8px 20px rgba(31, 46, 61, 0.07);
-}
-
-.media-screen::before {
-  position: absolute;
-  right: -7px;
-  bottom: -6px;
-  left: 8px;
-  height: 5px;
-  border: 1px solid #dbe1e8;
-  border-top: 0;
-  border-radius: 0 0 5px 5px;
-  content: "";
-}
-
-.play-mark {
-  width: 0;
-  height: 0;
-  margin-left: 3px;
-  border-top: 8px solid transparent;
-  border-bottom: 8px solid transparent;
-  border-left: 12px solid #fb7299;
-}
-
-.screen-timeline {
-  position: absolute;
-  right: 10px;
-  bottom: 8px;
-  left: 10px;
-  height: 2px;
-  border-radius: 2px;
-  background: #e1e5ea;
-}
-
-.screen-timeline i {
-  display: block;
-  width: 38%;
-  height: 100%;
-  border-radius: inherit;
-  background: #fb7299;
+  letter-spacing: -0.035em;
 }
 
 .search-panel,
 .select-wrapper {
   border: 1px solid #e3e8ee;
-  border-radius: 13px;
+  border-radius: 11px;
   background: #fff;
-  box-shadow: 0 10px 28px rgba(29, 42, 56, 0.035);
 }
 
 .search-panel {
-  padding: 20px 22px 16px;
+  padding: 16px 18px;
 }
 
 .field-label {
   display: block;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   color: #3c4856;
   font-size: 12px;
   font-weight: 600;
@@ -443,7 +340,7 @@ export default {
 .search-wrapper {
   display: flex;
   align-items: center;
-  height: 52px;
+  height: 48px;
   padding: 4px;
   border: 1px solid #dce2e8;
   border-radius: 9px;
@@ -487,18 +384,12 @@ export default {
 }
 
 .custom-button {
-  height: 42px;
-  padding: 0 21px;
+  height: 38px;
+  padding: 0 18px;
   border: 0;
   border-radius: 7px;
   font-weight: 600;
   box-shadow: 0 3px 8px rgba(251, 114, 153, 0.2);
-}
-
-.search-hint {
-  margin: 9px 0 0 2px;
-  color: #929daa;
-  font-size: 11px;
 }
 
 .select-wrapper {
@@ -592,17 +483,16 @@ export default {
   font-size: 12px;
 }
 
+@media (max-width: 860px) {
+  .search-intro {
+    align-items: flex-start;
+    padding-top: 24px;
+  }
+}
+
 @media (max-width: 760px) {
   .search-page {
-    padding: 34px 22px;
-  }
-
-  .media-stamp {
-    display: none;
-  }
-
-  .search-intro {
-    min-height: 120px;
+    padding-bottom: 34px;
   }
 
   .search-panel {
