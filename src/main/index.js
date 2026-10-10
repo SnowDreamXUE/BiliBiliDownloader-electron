@@ -24,7 +24,8 @@ import {
   getCompletedTasks,
   addCompletedTask,
   removeCompletedTask,
-  moveTaskToCompleted
+  moveTaskToCompleted,
+  initializeDataStorage
 } from './dataStorage';
 import { initDownloadManager } from './downloadManager';
 
@@ -227,6 +228,9 @@ app.whenReady().then(async () => {
 
   // 设置系统环境变量，解决中文乱码问题
   process.env.LANG = 'zh_CN.UTF-8';
+
+  // 启动时确保下载信息和任务记录文件已经存在。
+  await initializeDataStorage();
 
   // 加载保存的cookies
   await loadCookiesFromFile();

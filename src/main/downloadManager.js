@@ -11,6 +11,7 @@ import {
   setDownloadDir
 } from './downloadTools';
 import {
+  addCompletedTask,
   addDownloadingTask,
   getDownloadingTasks,
   moveTaskToCompleted,
@@ -337,7 +338,15 @@ async function startDownload(item) {
     }
 
     await updateDownloadProgress(avid, cid, 100);
-    await moveTaskToCompleted(avid, cid, completionData);
+    const completionResult = await moveTaskToCompleted(avid, cid, completionData);
+    if (!completionResult.success) {
+      console.warn(`下载完成但未找到进行中任务记录 [${avid}-${cid}]，直接补写完成记录`);
+      await addCompletedTask({
+        ...item,
+        ...completionData,
+        progress: 100
+      });
+    }
     await Promise.all(cleanupAfterCompletion.map(deleteFile));
     activeDownloads.delete(key);
 

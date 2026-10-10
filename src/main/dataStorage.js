@@ -1,7 +1,6 @@
 import { app } from 'electron';
 import fs from 'fs/promises';
 import path from 'path';
-import { existsSync, mkdirSync } from 'fs';
 
 // 数据存储基础路径
 const DATA_DIR = path.join(app.getPath('userData'), 'data');
@@ -9,23 +8,74 @@ const DOWNLOADS_INFO_FILE = path.join(DATA_DIR, 'downloads-info.json');
 const DOWNLOADING_FILE = path.join(DATA_DIR, 'downloading.json');
 const COMPLETED_FILE = path.join(DATA_DIR, 'completed.json');
 let downloadingTaskUpdateQueue = Promise.resolve();
-
-// 确保数据目录存在
-function ensureDataDirExists() {
-  if (!existsSync(DATA_DIR)) {
-    mkdirSync(DATA_DIR, { recursive: true });
-  }
-}
+let completedTaskWriteQueue = Promise.resolve();
+let storageInitialization;
 
 // 初始化存储文件
 async function initStorage() {
-  ensureDataDirExists();
+  if (!storageInitialization) {
+    storageInitialization = (async () => {
+      await fs.mkdir(DATA_DIR, { recursive: true });
 
-  // 检查并初始化各个JSON文件
-  for (const file of [DOWNLOADS_INFO_FILE, DOWNLOADING_FILE, COMPLETED_FILE]) {
-    if (!existsSync(file)) {
-      await fs.writeFile(file, JSON.stringify([], null, 2), 'utf8');
-    }
+      for (const file of [DOWNLOADS_INFO_FILE, DOWNLOADING_FILE, COMPLETED_FILE]) {
+        try {
+          await fs.access(file);
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+
+          try {
+            await fs.writeFile(file, JSON.stringify([], null, 2), { encoding: 'utf8', flag: 'wx' });
+          } catch (writeError) {
+            if (writeError.code !== 'EEXIST') throw writeError;
+          }
+        }
+      }
+    })().catch(error => {
+      storageInitialization = null;
+      throw error;
+    });
+  }
+
+  return storageInitialization;
+}
+
+export async function initializeDataStorage() {
+  await initStorage();
+}
+
+function serializeCompletedTaskWrite(operation) {
+  const result = completedTaskWriteQueue.then(operation);
+  completedTaskWriteQueue = result.catch(() => {});
+  return result;
+}
+
+function upsertCompletedTask(tasks, task) {
+  const completedTask = {
+    ...task,
+    completedAt: new Date().toISOString()
+  };
+
+  const existingIndex = tasks.findIndex(item => item.avid === task.avid && item.cid === task.cid);
+  if (existingIndex >= 0) {
+    tasks[existingIndex] = completedTask;
+  } else {
+    tasks.push(completedTask);
+  }
+
+  return tasks;
+}
+
+// 原子替换文件，避免读取方看到被截断的 JSON。
+async function writeJsonFile(filePath, data) {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+
+  const temporaryPath = `${filePath}.tmp`;
+  try {
+    await fs.writeFile(temporaryPath, JSON.stringify(data, null, 2), 'utf8');
+    await fs.rename(temporaryPath, filePath);
+  } catch (error) {
+    await fs.rm(temporaryPath, { force: true }).catch(() => {});
+    throw error;
   }
 }
 
@@ -33,18 +83,15 @@ async function initStorage() {
 async function readJsonFile(filePath) {
   try {
     const data = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!Array.isArray(parsed)) {
+      throw new Error(`JSON数据不是数组: ${filePath}`);
+    }
+    return parsed;
   } catch (error) {
-    console.error(`Error reading file ${filePath}:`, error);
-    // 如果文件不存在或格式错误，返回空数组
+    console.error(`读取文件失败 ${filePath}:`, error);
     return [];
   }
-}
-
-// 写入JSON文件
-async function writeJsonFile(filePath, data) {
-  ensureDataDirExists();
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
 }
 
 // 获取下载信息列表
@@ -145,36 +192,41 @@ export async function getDownloadingTasks() {
 }
 
 export async function addDownloadingTask(task) {
-  const tasks = await getDownloadingTasks();
-  // 防止重复添加
-  const existingIndex = tasks.findIndex(t => t.avid === task.avid && t.cid === task.cid);
+  const operation = downloadingTaskUpdateQueue.then(async () => {
+    const tasks = await getDownloadingTasks();
+    // 防止重复添加
+    const existingIndex = tasks.findIndex(t => t.avid === task.avid && t.cid === task.cid);
 
-  // 确保保存合集信息
-  const taskWithDetails = {
-    ...task,
-    isCompilations: task.isCompilations || false,  // 确保合集标志存在
-    videoName: task.videoName || '',               // 确保合集名称存在
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    progress: task.progress || 0
-  };
-
-  if (existingIndex >= 0) {
-    // 更新任务时保留原有合集信息
-    const existingTask = tasks[existingIndex];
-    tasks[existingIndex] = {
-      ...taskWithDetails,
-      isCompilations: taskWithDetails.isCompilations || existingTask.isCompilations,
-      videoName: taskWithDetails.videoName || existingTask.videoName,
-      createdAt: existingTask.createdAt || taskWithDetails.createdAt,
-      updatedAt: new Date().toISOString()
+    // 确保保存合集信息
+    const taskWithDetails = {
+      ...task,
+      isCompilations: task.isCompilations || false,
+      videoName: task.videoName || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      progress: task.progress || 0
     };
-  } else {
-    tasks.push(taskWithDetails);
-  }
 
-  await writeJsonFile(DOWNLOADING_FILE, tasks);
-  return { success: true };
+    if (existingIndex >= 0) {
+      // 更新任务时保留原有合集信息
+      const existingTask = tasks[existingIndex];
+      tasks[existingIndex] = {
+        ...taskWithDetails,
+        isCompilations: taskWithDetails.isCompilations || existingTask.isCompilations,
+        videoName: taskWithDetails.videoName || existingTask.videoName,
+        createdAt: existingTask.createdAt || taskWithDetails.createdAt,
+        updatedAt: new Date().toISOString()
+      };
+    } else {
+      tasks.push(taskWithDetails);
+    }
+
+    await writeJsonFile(DOWNLOADING_FILE, tasks);
+    return { success: true };
+  });
+
+  downloadingTaskUpdateQueue = operation.catch(() => {});
+  return operation;
 }
 
 export async function updateDownloadingTask(avid, cid, updateData) {
@@ -224,55 +276,51 @@ export async function getCompletedTasks() {
 }
 
 export async function addCompletedTask(task) {
-  const tasks = await getCompletedTasks();
-  // 添加完成时间
-  const completedTask = {
-    ...task,
-    completedAt: new Date().toISOString()
-  };
-
-  // 防止重复添加
-  const existingIndex = tasks.findIndex(t => t.avid === task.avid && t.cid === task.cid);
-  if (existingIndex >= 0) {
-    tasks[existingIndex] = completedTask;
-  } else {
-    tasks.push(completedTask);
-  }
-
-  await writeJsonFile(COMPLETED_FILE, tasks);
-  return { success: true };
+  return serializeCompletedTaskWrite(async () => {
+    await initStorage();
+    const tasks = upsertCompletedTask(await readJsonFile(COMPLETED_FILE), task);
+    await writeJsonFile(COMPLETED_FILE, tasks);
+    return { success: true };
+  });
 }
 
 export async function removeCompletedTask(avid, cid) {
-  const tasks = await getCompletedTasks();
-  const newTasks = tasks.filter(task => !(task.avid === avid && task.cid === cid));
+  return serializeCompletedTaskWrite(async () => {
+    await initStorage();
+    const tasks = await readJsonFile(COMPLETED_FILE);
+    const newTasks = tasks.filter(task => !(task.avid === avid && task.cid === cid));
 
-  if (tasks.length === newTasks.length) {
-    return { success: false, message: '未找到指定的已完成任务' };
-  }
+    if (tasks.length === newTasks.length) {
+      return { success: false, message: '未找到指定的已完成任务' };
+    }
 
-  await writeJsonFile(COMPLETED_FILE, newTasks);
-  return { success: true };
+    await writeJsonFile(COMPLETED_FILE, newTasks);
+    return { success: true };
+  });
 }
 
 // 将下载中的任务移动到已完成任务
 export async function moveTaskToCompleted(avid, cid, additionalData = {}) {
-  const tasks = await getDownloadingTasks();
-  const taskIndex = tasks.findIndex(task => task.avid === avid && task.cid === cid);
+  return serializeCompletedTaskWrite(async () => {
+    await initStorage();
+    const tasks = await getDownloadingTasks();
+    const taskIndex = tasks.findIndex(task => task.avid === avid && task.cid === cid);
 
-  if (taskIndex === -1) {
-    return { success: false, message: '未找到指定的下载任务' };
-  }
+    if (taskIndex === -1) {
+      return { success: false, message: '未找到指定的下载任务' };
+    }
 
-  const task = tasks[taskIndex];
-  // 从下载中移除
-  await removeDownloadingTask(avid, cid);
-  // 添加到已完成
-  await addCompletedTask({
-    ...task,
-    ...additionalData,
-    progress: 100
+    const task = tasks[taskIndex];
+    const completedTasks = upsertCompletedTask(await readJsonFile(COMPLETED_FILE), {
+      ...task,
+      ...additionalData,
+      progress: 100
+    });
+
+    // 先持久化完成记录，再从进行中列表移除，尽量避免故障时丢失历史。
+    await writeJsonFile(COMPLETED_FILE, completedTasks);
+    await removeDownloadingTask(avid, cid);
+
+    return { success: true };
   });
-
-  return { success: true };
 }
