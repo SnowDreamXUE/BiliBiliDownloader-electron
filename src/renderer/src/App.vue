@@ -14,6 +14,9 @@
           <el-menu-item index="/download" title="下载管理" aria-label="下载管理">
             <el-icon><Download /></el-icon>
           </el-menu-item>
+          <el-menu-item index="/favorites" title="收藏夹下载" aria-label="收藏夹下载">
+            <el-icon><Star /></el-icon>
+          </el-menu-item>
           <el-menu-item index="/login" title="账号登录" aria-label="账号登录">
             <el-icon><User /></el-icon>
           </el-menu-item>
@@ -36,7 +39,7 @@
 <script setup>
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import { Search, User, Download, Setting } from "@element-plus/icons-vue";
+import { Search, User, Download, Setting, Star } from "@element-plus/icons-vue";
 import TitleBar from "./components/TitleBar.vue";
 
 const route = useRoute();

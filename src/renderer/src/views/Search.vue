@@ -70,6 +70,7 @@
 
 <script>
 import { ArrowDown, Link } from "@element-plus/icons-vue";
+import { fetchDownloadStreams } from "../utils/videoDownload";
 
 export default {
   components: {
@@ -88,28 +89,7 @@ export default {
       selectedPages: [],  // 选中的分集CID
       isCollapsed: false, // 是否折叠
       isAllSelected: false, // 是否全选
-      isIndeterminate: false, // 是否部分选中
-      qualities: { // 视频清晰度
-        "6": "240P",
-        "16": "360P",
-        "32": "480P",
-        "64": "720P",
-        "74": "720P60",
-        "80": "1080P",
-        "100": "智能修复",
-        "112": "1080P+",
-        "116": "1080P60",
-        "120": "4K",
-        "125": "HDR",
-        "126": "杜比视界",
-        "127": "8K",
-        "129": "HDR Vivid"
-      },
-      codecNames: {
-        "7": "AVC",
-        "12": "HEVC",
-        "13": "AV1"
-      }
+      isIndeterminate: false // 是否部分选中
     };
   },
   watch: {
@@ -219,7 +199,10 @@ export default {
           message: "请选择需要下载的分集",
           duration: 2000
         });
-      } else {
+        return;
+      }
+
+      try {
         const downloadInfo = {
           avid: this.avid,
           videoName: this.videoName,
@@ -238,7 +221,7 @@ export default {
             acceptQuality: [],
             supportFormats: []
           }
-          const { VideoData, AudioData, AcceptQuality, SupportFormats } = await this.getDownloadUrls(pageData.cid);
+          const { VideoData, AudioData, AcceptQuality, SupportFormats } = await fetchDownloadStreams(this.avid, pageData.cid);
           pageData.videoData = VideoData;
           pageData.audioData = AudioData;
           pageData.acceptQuality = AcceptQuality;
@@ -246,99 +229,19 @@ export default {
           downloadInfo.pages.push(pageData);
         }
 
-        // 使用新的API保存下载信息
-        try {
-          await window.api.storage.saveDownloadInfo(downloadInfo);
-          this.$notify.success({
-            title: "准备完成",
-            message: `已装载 ${downloadInfo.pages.length} 个视频分P，并已保存下载信息`,
-            duration: 2000
-          });
-
-          // 可选：导航到下一步
-          this.$router.push('/download');
-        } catch (error) {
-          this.$notify.error({
-            title: "保存失败",
-            message: `下载信息保存失败: ${error.message}`,
-            duration: 2000
-          });
-        }
-      }
-    },
-
-    // 获取下载链接
-    async getDownloadUrls(cid) {
-      const res = await window.api.http.get(`https://api.bilibili.com/x/player/playurl?avid=${this.avid}&cid=${cid}&fnval=4048&fourk=1`);
-      const res_data = res.data.data;
-      const dash = res_data.dash || {};
-      const VideoData = [];
-      const AudioData = [];
-      const videoStreams = dash.video || [];
-      for (let i = 0; i < videoStreams.length; i++) {
-        const stream = videoStreams[i];
-        const video = {
-          label: `${this.qualities[stream.id] || `${stream.id}P`} | ${this.codecNames[stream.codecid] || "未知编码"}`,
-          url: stream.baseUrl || stream.base_url,
-          qualityId: Number(stream.id),
-          codecId: Number(stream.codecid),
-          codecs: stream.codecs || ""
-        }
-        VideoData.push(video);
-      }
-      const audioStreams = dash.audio || [];
-      for (let i = 0; i < audioStreams.length; i++) {
-        const stream = audioStreams[i];
-        const audio = {
-          label: ({ "30280": "192K", "30232": "132K", "30216": "64K" })[stream.id] || "标准音质",
-          url: stream.baseUrl || stream.base_url,
-          audioId: Number(stream.id)
-        }
-        AudioData.push(audio);
-      }
-
-      const dolbyAudio = Array.isArray(dash.dolby?.audio)
-        ? dash.dolby.audio
-        : dash.dolby?.audio ? [dash.dolby.audio] : [];
-      dolbyAudio.forEach(stream => {
-        const url = stream.baseUrl || stream.base_url;
-        if (url) {
-          AudioData.push({
-            label: "杜比全景声",
-            url,
-            audioId: 30250,
-            format: "dolby",
-            codecs: stream.codecs || ""
-          });
-        }
-      });
-
-      const losslessAudio = dash.flac?.audio;
-      if (losslessAudio?.baseUrl || losslessAudio?.base_url) {
-        AudioData.push({
-          label: "Hi-Res 无损",
-          url: losslessAudio.baseUrl || losslessAudio.base_url,
-          audioId: 30251,
-          format: "flac"
+        await window.api.storage.saveDownloadInfo(downloadInfo);
+        this.$notify.success({
+          title: "准备完成",
+          message: `已装载 ${downloadInfo.pages.length} 个视频分P，并已保存下载信息`,
+          duration: 2000
         });
-      }
-
-      const AcceptQuality = Array.isArray(res_data.accept_quality)
-        ? res_data.accept_quality.map(Number)
-        : [];
-      const SupportFormats = Array.isArray(res_data.support_formats)
-        ? res_data.support_formats.map(format => ({
-          qualityId: Number(format.quality),
-          description: format.new_description || format.display_desc || "",
-          codecs: Array.isArray(format.codecs) ? [...format.codecs] : []
-        }))
-        : [];
-
-      return {
-        VideoData,
-        AudioData,
-        AcceptQuality,
-        SupportFormats
+        this.$router.push("/download");
+      } catch (error) {
+        this.$notify.error({
+          title: "获取下载信息失败",
+          message: error.message || "请检查网络和登录状态",
+          duration: 2500
+        });
       }
     },
   }

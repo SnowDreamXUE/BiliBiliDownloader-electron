@@ -12,6 +12,11 @@ const routes = [
     component: () => import("../views/Search.vue")
   },
   {
+    path: "/favorites",
+    name: "Favorites",
+    component: () => import("../views/Favorites.vue")
+  },
+  {
     path: "/download",
     name: "Download",
     component: () => import("../views/Download/index.vue"),
