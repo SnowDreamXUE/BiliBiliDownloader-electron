@@ -6,26 +6,31 @@ import path from 'path';
 import fs from 'fs';
 import { randomBytes } from 'crypto';
 
-// 工具路径配置
-const NODE_ENV = process.env.NODE_ENV || 'production';
-const aria2cPath = "/assets/aria2c.exe";
-const ffmpegPath = "/assets/ffmpeg.exe";
+const TOOL_EXECUTABLES = {
+  aria2c: { fileName: 'aria2c.exe', displayName: 'aria2c' },
+  ffmpeg: { fileName: 'ffmpeg.exe', displayName: 'FFmpeg' }
+};
 
-const getResourcePath = () => {
-  const resourcePath = app.getAppPath();
-  if (NODE_ENV !== 'development') {
-    return process.resourcesPath;
+function getToolPath(toolName) {
+  const tool = TOOL_EXECUTABLES[toolName];
+  if (!tool) {
+    throw new Error(`未知的下载工具: ${toolName}`);
   }
-  return resourcePath;
+
+  const toolsDirectory = app.isPackaged
+    ? path.join(process.resourcesPath, 'tools')
+    : path.join(app.getAppPath(), 'assets');
+  const toolPath = path.join(toolsDirectory, tool.fileName);
+
+  if (!fs.existsSync(toolPath)) {
+    throw new Error(`找不到${tool.displayName}程序: ${toolPath}`);
+  }
+
+  return toolPath;
 }
 
-const getFfmpegPath = () => {
-  return path.join(getResourcePath(), ffmpegPath);
-}
-
-const getAria2cPath = () => {
-  return path.join(getResourcePath(), aria2cPath);
-}
+const getFfmpegPath = () => getToolPath('ffmpeg');
+const getAria2cPath = () => getToolPath('aria2c');
 
 // 默认下载目录
 let defaultDownloadDir = path.join(app.getPath('downloads'), 'BiliBiliDownloader');
