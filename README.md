@@ -1,123 +1,95 @@
-# BiliBili Downloader
+# BiliBiliDownloader-electron
 
-BiliBili Downloader 是一款基于Electron和Vue开发的桌面应用程序，用于下载哔哩哔哩视频网站的视频内容。
+**当前版本：2.0.0**
 
-## 功能特点
+BiliBiliDownloader-electron 是一款基于 Electron、Vue 3 和 Element Plus 的哔哩哔哩视频下载桌面应用，支持账号登录、视频与收藏夹解析、批量下载及下载任务管理。
 
-- 支持B站账号登录，通过扫码或Cookie方式
-- 视频搜索与浏览
-- 高清视频下载
-- 自定义下载目录
-- 下载任务管理（等待中、下载中、已下载）
-- 支持视频和音频合并
-- 视频封面下载
-- 支持音频提取
+## 功能
 
-## 系统要求
+- 支持 Bilibili 扫码登录和 Cookie 登录。
+- 搜索视频并查看可下载的画质和音频选项；受账号权限或视频源限制的选项会显示为不可用。
+- 下载视频、音频或封面，也可一次下载全部内容。
+- 支持 MP3、杜比全景声和 Hi-Res 无损音频；实际可用选项取决于视频源和账号权限。
+- 浏览登录账号的收藏夹，支持一次加载收藏夹内的视频并加入下载列表。
+- 管理待下载、下载中和已完成任务；下载过程中可暂停和继续。
+- 配置默认下载选项，并设置保存路径。
+- 下载记录保存在本机应用数据目录中。
 
-- Windows 7及以上版本
-- 最小屏幕分辨率: 1100 x 700
+## Windows 安装
 
-## 安装使用
+前往 [GitHub Releases](https://github.com/SnowDreamXUE/BiliBiliDownloader-electron/releases) 下载最新的 Windows x64 安装包，运行安装程序并按提示完成安装。
 
-### 方法一：下载预构建版本
+当前 Windows 安装包未进行代码签名，首次安装或启动时，Windows 可能显示安全提示。
 
-1. 前往[Releases](https://github.com/yourusername/BiliBiliDownloader-electron/releases)页面
-2. 下载最新版本的安装包
-3. 运行安装程序并按提示操作
+## 使用说明
 
-### 方法二：从源码构建
+1. 打开“账号登录”页面扫码登录，或导入 Cookie。搜索和公开视频下载可按需使用；收藏夹需要登录。
+2. 在搜索页解析视频，或在收藏夹页面选择收藏夹并加载视频。
+3. 将要下载的视频加入待下载列表，在设置中选择默认画质、音频和保存路径。
+4. 在下载页点击“全部下载设置”，选择本次批量下载视频、音频、封面或全部内容。
+5. 开始下载后，可在“下载中”页面查看进度并暂停或继续任务；完成的文件和记录可在“已完成”页面查看。
 
-#### 前提条件
+部分画质和音频选项受 Bilibili 账号等级、登录状态、视频源和版权限制。应用只会提供当前账号和视频可用的选项。
 
-- [Node.js](https://nodejs.org/) (推荐v16及以上)
-- [npm](https://www.npmjs.com/) 或 [yarn](https://yarnpkg.com/)
+## 从源码运行
 
-#### 步骤
+### 环境要求
+
+- Windows 10/11 x64
+- [Node.js](https://nodejs.org/) 20 或更高版本
+- npm
+- 项目中的 `assets/aria2c.exe` 和 `assets/ffmpeg.exe` 下载及媒体处理工具
+
+### 安装依赖并启动
 
 ```bash
-# 克隆仓库
-git clone https://github.com/yourusername/BiliBiliDownloader-electron.git
-
-# 进入项目目录
+git clone https://github.com/SnowDreamXUE/BiliBiliDownloader-electron.git
 cd BiliBiliDownloader-electron
-
-# 安装依赖
 npm install
-# 或
-yarn install
-
-# 运行开发版本
 npm run dev
-# 或
-yarn dev
-
-# 构建生产版本
-npm run build:win  # Windows版本
-# 或
-yarn build:win
-
-# 其他平台构建
-npm run build:mac     # Mac版本
-npm run build:linux   # Linux版本
 ```
 
-## 使用指南
+### 构建
 
-1. **登录账号**：支持扫码登录或Cookie导入
-2. **搜索视频**：在搜索栏输入关键词查找视频
-3. **下载视频**：点击视频卡片上的下载按钮
-4. **管理下载**：在"下载管理"标签页可查看和管理下载状态
-5. **设置下载目录**：在设置中可自定义视频保存位置
+```bash
+# 构建应用资源
+npm run build
+
+# 生成 Windows x64 安装包
+npm run build:win
+```
+
+安装包输出到 `dist/`。项目目前主要面向 Windows；虽然配置中包含 macOS 和 Linux 构建脚本，但下载工具目前随项目提供的是 Windows 版本，其他平台尚未完整支持。
 
 ## 技术栈
 
-- [Electron](https://www.electronjs.org/): 桌面应用程序框架
-- [Vue 3](https://vuejs.org/): 前端框架
-- [Element Plus](https://element-plus.org/): UI组件库
-- [Pinia](https://pinia.vuejs.org/): 状态管理
-- [Vue Router](https://router.vuejs.org/): 路由管理
-- [Aria2](https://aria2.github.io/): 用于高效下载
-- [FFmpeg](https://ffmpeg.org/): 用于视频音频处理
+- [Electron](https://www.electronjs.org/)
+- [Vue 3](https://vuejs.org/)
+- [Element Plus](https://element-plus.org/)
+- [Pinia](https://pinia.vuejs.org/)
+- [Vue Router](https://router.vuejs.org/)
+- [aria2](https://aria2.github.io/)
+- [FFmpeg](https://ffmpeg.org/)
 
 ## 项目结构
 
-```
-├── build/                 # 构建相关资源
-├── resources/             # 应用资源（aria2c.exe, ffmpeg.exe等）
+```text
+├── assets/                    # aria2c.exe、ffmpeg.exe
+├── build/                     # 应用图标和平台构建资源
+├── resources/                 # 应用资源
 ├── src/
-│   ├── main/             # Electron主进程代码
-│   │   ├── cookieSet.js       # Cookie管理
-│   │   ├── dataStorage.js     # 数据存储
-│   │   ├── downloadManager.js # 下载管理
-│   │   ├── downloadTools.js   # 下载工具
-│   │   └── index.js           # 主进程入口
-│   ├── preload/          # 预加载脚本
-│   └── renderer/         # 渲染进程（前端）代码
-│       ├── src/
-│       │   ├── components/    # Vue组件
-│       │   ├── router/        # 路由配置
-│       │   ├── stores/        # Pinia存储
-│       │   └── views/         # 页面视图
-│       └── index.html         # HTML模板
-├── electron.vite.config.mjs  # Electron Vite配置
-├── electron-builder.yml      # Electron Builder配置
-└── package.json              # 项目依赖和脚本
+│   ├── main/                  # Electron 主进程、下载和本地数据存储
+│   ├── preload/               # 主进程与渲染进程之间的安全接口
+│   └── renderer/               # Vue 页面和组件
+├── VERSION                    # 当前版本号
+├── electron-builder.yml       # 安装包构建配置
+└── package.json               # 项目依赖和脚本
 ```
-
-## 许可证
-
-本项目遵循[LICENSE](./LICENSE)文件中指定的许可证。
 
 ## 免责声明
 
-本软件仅供学习和研究使用，请勿用于非法用途或违反哔哩哔哩用户协议的行为。用户应当尊重内容创作者的版权，不得将下载的内容用于商业目的。
+本项目仅供学习和个人使用。请遵守 Bilibili 用户协议及适用法律，尊重内容创作者的版权。请勿将下载内容用于未经授权的传播或商业用途。
 
+## 许可证
 
-## 致谢
-
-- [Electron](https://www.electronjs.org/)
-- [Vue](https://vuejs.org/)
-- [Element Plus](https://element-plus.org/)
-- [Aria2](https://aria2.github.io/)
-- [FFmpeg](https://ffmpeg.org/)
+本项目遵循 [LICENSE](./LICENSE) 中的许可条款。
