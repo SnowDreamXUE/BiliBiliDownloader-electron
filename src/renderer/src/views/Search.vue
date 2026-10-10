@@ -89,23 +89,26 @@ export default {
       isCollapsed: false, // 是否折叠
       isAllSelected: false, // 是否全选
       isIndeterminate: false, // 是否部分选中
-      audioIds: { // 音频ID对应码率
-        "30280": "192K",
-        "30216": "64K",
-        "30232": "132K"
-      },
       qualities: { // 视频清晰度
-        "116": "1080P60",
-        "112": "1080P+",
-        "80": "1080P",
-        "74": "720P60",
-        "64": "720P",
+        "6": "240P",
+        "16": "360P",
         "32": "480P",
-        "16": "360P"
+        "64": "720P",
+        "74": "720P60",
+        "80": "1080P",
+        "100": "智能修复",
+        "112": "1080P+",
+        "116": "1080P60",
+        "120": "4K",
+        "125": "HDR",
+        "126": "杜比视界",
+        "127": "8K",
+        "129": "HDR Vivid"
       },
-      codecNames: { // 视频码率对应名称
+      codecNames: {
         "7": "AVC",
-        "12": "HEVC"
+        "12": "HEVC",
+        "13": "AV1"
       }
     };
   },
@@ -231,11 +234,15 @@ export default {
             title: temp.part,
             pic: temp.first_frame,
             videoData: [],
-            audioData: []
+            audioData: [],
+            acceptQuality: [],
+            supportFormats: []
           }
-          const { VideoData, AudioData } = await this.getDownloadUrls(pageData.cid);
+          const { VideoData, AudioData, AcceptQuality, SupportFormats } = await this.getDownloadUrls(pageData.cid);
           pageData.videoData = VideoData;
           pageData.audioData = AudioData;
+          pageData.acceptQuality = AcceptQuality;
+          pageData.supportFormats = SupportFormats;
           downloadInfo.pages.push(pageData);
         }
 
@@ -262,27 +269,76 @@ export default {
 
     // 获取下载链接
     async getDownloadUrls(cid) {
-      const res = await window.api.http.get(`https://api.bilibili.com/x/player/playurl?avid=${this.avid}&cid=${cid}&fnval=16`);
+      const res = await window.api.http.get(`https://api.bilibili.com/x/player/playurl?avid=${this.avid}&cid=${cid}&fnval=4048&fourk=1`);
       const res_data = res.data.data;
+      const dash = res_data.dash || {};
       const VideoData = [];
       const AudioData = [];
-      for (let i = 0; i < res_data.dash.video.length; i++) {
+      const videoStreams = dash.video || [];
+      for (let i = 0; i < videoStreams.length; i++) {
+        const stream = videoStreams[i];
         const video = {
-          label: `${this.qualities[res_data.dash.video[i].id]} | ${this.codecNames[res_data.dash.video[i].codecid]}`,
-          url: res_data.dash.video[i].baseUrl
+          label: `${this.qualities[stream.id] || `${stream.id}P`} | ${this.codecNames[stream.codecid] || "未知编码"}`,
+          url: stream.baseUrl || stream.base_url,
+          qualityId: Number(stream.id),
+          codecId: Number(stream.codecid),
+          codecs: stream.codecs || ""
         }
         VideoData.push(video);
       }
-      for (let i = 0; i < res_data.dash.audio.length; i++) {
+      const audioStreams = dash.audio || [];
+      for (let i = 0; i < audioStreams.length; i++) {
+        const stream = audioStreams[i];
         const audio = {
-          label: this.audioIds[res_data.dash.audio[i].id],
-          url: res_data.dash.audio[i].baseUrl
+          label: ({ "30280": "192K", "30232": "132K", "30216": "64K" })[stream.id] || "标准音质",
+          url: stream.baseUrl || stream.base_url,
+          audioId: Number(stream.id)
         }
         AudioData.push(audio);
       }
+
+      const dolbyAudio = Array.isArray(dash.dolby?.audio)
+        ? dash.dolby.audio
+        : dash.dolby?.audio ? [dash.dolby.audio] : [];
+      dolbyAudio.forEach(stream => {
+        const url = stream.baseUrl || stream.base_url;
+        if (url) {
+          AudioData.push({
+            label: "杜比全景声",
+            url,
+            audioId: 30250,
+            format: "dolby",
+            codecs: stream.codecs || ""
+          });
+        }
+      });
+
+      const losslessAudio = dash.flac?.audio;
+      if (losslessAudio?.baseUrl || losslessAudio?.base_url) {
+        AudioData.push({
+          label: "Hi-Res 无损",
+          url: losslessAudio.baseUrl || losslessAudio.base_url,
+          audioId: 30251,
+          format: "flac"
+        });
+      }
+
+      const AcceptQuality = Array.isArray(res_data.accept_quality)
+        ? res_data.accept_quality.map(Number)
+        : [];
+      const SupportFormats = Array.isArray(res_data.support_formats)
+        ? res_data.support_formats.map(format => ({
+          qualityId: Number(format.quality),
+          description: format.new_description || format.display_desc || "",
+          codecs: Array.isArray(format.codecs) ? [...format.codecs] : []
+        }))
+        : [];
+
       return {
         VideoData,
-        AudioData
+        AudioData,
+        AcceptQuality,
+        SupportFormats
       }
     },
   }

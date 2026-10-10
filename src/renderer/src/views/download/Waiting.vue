@@ -49,10 +49,11 @@
                   size="small"
                 >
                   <el-option
-                    v-for="(audio, index) in item.audioData"
-                    :key="'audio-'+item.cid+'-'+index"
+                    v-for="(audio, index) in getAudioOptions(item)"
+                    :key="'audio-'+item.cid+'-'+audio.audioId+'-'+index"
                     :label="audio.label"
                     :value="audio.url"
+                    :disabled="audio.disabled"
                   ></el-option>
                 </el-select>
               </div>
@@ -65,10 +66,11 @@
                   size="small"
                 >
                   <el-option
-                    v-for="(video, index) in item.videoData"
-                    :key="'video-'+item.cid+'-'+index"
+                    v-for="(video, index) in getVideoOptions(item)"
+                    :key="'video-'+item.cid+'-'+video.qualityId+'-'+video.codecId+'-'+index"
                     :label="video.label"
                     :value="video.url"
+                    :disabled="video.disabled"
                   ></el-option>
                 </el-select>
               </div>
@@ -81,12 +83,21 @@
 </template>
 
 <script>
+import {
+  AUDIO_OPTIONS,
+  loadDownloadConfig,
+  QUALITY_OPTIONS,
+  selectDefaultAudio,
+  selectDefaultVideo
+} from "../../utils/downloadConfig";
+
 export default {
   data() {
     return {
       downloadInfo: [], // 下载信息
       selectedVideo: {}, // 存储选中的视频质量
       selectedAudio: {}, // 存储选中的音频质量
+      downloadConfig: loadDownloadConfig(),
       downloadPath: "" // 下载路径
     };
   },
@@ -106,10 +117,12 @@ export default {
         this.downloadInfo.forEach(video => {
           video.pages.forEach(page => {
             if (page.videoData && page.videoData.length > 0) {
-              this.selectedVideo[page.cid] = page.videoData[0].url;
+              const preferredVideo = selectDefaultVideo(page.videoData, this.downloadConfig);
+              this.selectedVideo[page.cid] = preferredVideo?.url || page.videoData[0].url;
             }
             if (page.audioData && page.audioData.length > 0) {
-              this.selectedAudio[page.cid] = page.audioData[0].url;
+              const preferredAudio = selectDefaultAudio(page.audioData, this.downloadConfig);
+              this.selectedAudio[page.cid] = preferredAudio?.url || page.audioData[0].url;
             }
           });
         });
@@ -141,6 +154,60 @@ export default {
         console.error("选择下载路径失败", error);
         this.$message.error(`选择下载路径失败: ${error.message}`);
       }
+    },
+
+    getAudioOptions(item) {
+      const streams = Array.isArray(item.audioData) ? item.audioData : [];
+      const knownIds = new Set(AUDIO_OPTIONS.map(option => option.audioId));
+      const options = [...AUDIO_OPTIONS].reverse().map(option => {
+        const available = streams.find(stream => Number(stream.audioId) === option.audioId);
+        return available || {
+          label: `${option.label}（不可用）`,
+          url: `unavailable-audio-${item.cid}-${option.audioId}`,
+          audioId: option.audioId,
+          disabled: true
+        };
+      });
+
+      return options.concat(streams.filter(stream => !knownIds.has(Number(stream.audioId))));
+    },
+
+    getVideoOptions(item) {
+      const streams = Array.isArray(item.videoData) ? item.videoData : [];
+      const knownQualityIds = new Set(QUALITY_OPTIONS.map(option => option.qualityId));
+      const acceptedQualities = new Set((item.acceptQuality || []).map(Number));
+      const hasAcceptedQualityList = acceptedQualities.size > 0;
+      const isStreamAvailable = stream => {
+        const qualityId = Number(stream.qualityId);
+        if (hasAcceptedQualityList && !acceptedQualities.has(qualityId)) return false;
+
+        const supportFormat = (item.supportFormats || []).find(format => Number(format.qualityId) === qualityId);
+        if (supportFormat?.codecs?.length && stream.codecs) {
+          return supportFormat.codecs.includes(stream.codecs);
+        }
+        return true;
+      };
+      const options = [...QUALITY_OPTIONS].reverse().flatMap(option => {
+        const available = streams
+          .filter(stream => Number(stream.qualityId) === option.qualityId)
+          .filter(isStreamAvailable);
+        return available.length > 0 ? available : [{
+          label: `${option.label}（不可用）`,
+          url: `unavailable-video-${item.cid}-${option.qualityId}`,
+          qualityId: option.qualityId,
+          codecId: 0,
+          disabled: true
+        }];
+      });
+
+      return options.concat(streams.filter(stream =>
+        !knownQualityIds.has(Number(stream.qualityId)) && isStreamAvailable(stream)
+      ));
+    },
+
+    getAudioFormat(item) {
+      const selectedStream = item.audioData?.find(stream => stream.url === this.selectedAudio[item.cid]);
+      return selectedStream?.format || "mp3";
     },
 
     // 下载封面
@@ -216,6 +283,7 @@ export default {
           cid: item.cid,
           title: item.title,
           audioUrl: audioUrl, // 确保这里的audioUrl是有效的
+          audioFormat: this.getAudioFormat(item),
           isCompilations: videoInfo.isCompilations,
           videoName: videoInfo.videoName,
           type: "audio" // 下载类型：音频
@@ -267,6 +335,7 @@ export default {
           title: item.title,
           videoUrl: videoUrl,
           audioUrl: audioUrl,
+          audioFormat: this.getAudioFormat(item),
           isCompilations: videoInfo.isCompilations,
           videoName: videoInfo.videoName
         };
@@ -315,6 +384,7 @@ export default {
                 title: item.title,
                 videoUrl: videoUrl,
                 audioUrl: audioUrl,
+                audioFormat: this.getAudioFormat(item),
                 // 确保始终保留合集信息
                 isCompilations: isCompilations,
                 videoName: videoName,
@@ -348,6 +418,7 @@ export default {
                 title: item.title,
                 videoUrl: item.videoUrl,
                 audioUrl: item.audioUrl,
+                audioFormat: item.audioFormat,
                 isCompilations: item.isCompilations,
                 videoName: item.videoName
               };

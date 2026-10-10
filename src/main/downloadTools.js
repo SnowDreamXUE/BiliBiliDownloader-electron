@@ -340,7 +340,7 @@ export async function downloadFile(url, finalPath, progressCallback = null, cont
  * @param {function} progressCallback 进度回调函数
  * @returns {Promise<object>} 合并结果
  */
-export function mergeVideoAudio(videoPath, audioPath, outputPath, progressCallback = null) {
+export function mergeVideoAudio(videoPath, audioPath, outputPath, progressCallback = null, audioFormat = 'mp3') {
   return new Promise((resolve, reject) => {
     // 确保输出目录存在
     const dir = path.dirname(outputPath);
@@ -351,7 +351,7 @@ export function mergeVideoAudio(videoPath, audioPath, outputPath, progressCallba
       '-i', videoPath,
       '-i', audioPath,
       '-c:v', 'copy',      // 复制视频流，不重新编码
-      '-c:a', 'aac',       // 使用aac作为音频编码
+      '-c:a', audioFormat === 'mp3' ? 'aac' : 'copy',
       '-strict', 'experimental',
       '-y',                // 自动覆盖输出文件
       outputPath
@@ -471,6 +471,55 @@ export function convertToMp3(inputPath, outputPath, progressCallback = null) {
 
     ffmpeg.on('error', (err) => {
       reject(new Error(`启动 ffmpeg 失败: ${err.message}`));
+    });
+  });
+}
+
+/**
+ * 将高品质 DASH 音轨重新封装为独立文件，不重新编码音频。
+ */
+export function remuxAudio(inputPath, outputPath, progressCallback = null) {
+  return new Promise((resolve, reject) => {
+    const dir = path.dirname(outputPath);
+    ensureDownloadDirExists(dir);
+
+    const args = [
+      '-i', inputPath,
+      '-map', '0:a:0',
+      '-c:a', 'copy',
+      '-y',
+      outputPath
+    ];
+    const ffmpeg = spawn(getFfmpegPath(), args, { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+
+    let error = '';
+    let duration = 0;
+    ffmpeg.stderr.on('data', data => {
+      const output = data.toString();
+      error = `${error}${output}`.slice(-2000);
+
+      const durationMatch = output.match(/Duration: ([0-9]+):([0-9]+):([0-9]+)/);
+      if (durationMatch) {
+        duration = Number(durationMatch[1]) * 3600 + Number(durationMatch[2]) * 60 + Number(durationMatch[3]);
+      }
+
+      const timeMatch = output.match(/time=([0-9]+):([0-9]+):([0-9]+)/);
+      if (timeMatch && progressCallback && duration > 0) {
+        const currentTime = Number(timeMatch[1]) * 3600 + Number(timeMatch[2]) * 60 + Number(timeMatch[3]);
+        progressCallback(Math.min(Math.round((currentTime / duration) * 100), 100));
+      }
+    });
+
+    ffmpeg.on('close', code => {
+      if (code === 0) {
+        resolve({ success: true, outputPath });
+      } else {
+        reject(new Error(`ffmpeg 音频封装失败，退出码: ${code}, 错误: ${error}`));
+      }
+    });
+
+    ffmpeg.on('error', error => {
+      reject(new Error(`启动 ffmpeg 失败: ${error.message}`));
     });
   });
 }

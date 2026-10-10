@@ -19,7 +19,7 @@
           <div class="task-info">
             <div class="task-title">{{ task.title }}</div>
             <div class="task-status" :class="{'task-error': task.status === 'failed'}">
-              {{ getStatusText(task.status) }}
+              {{ getStatusText(task.status, task) }}
               <span v-if="task.error" class="error-msg">: {{ task.error }}</span>
             </div>
           </div>
@@ -208,6 +208,7 @@ export default {
         title: task.title,
         videoUrl: task.videoUrl,
         audioUrl: task.audioUrl,
+        audioFormat: task.audioFormat,
         picUrl: task.picUrl,
         isCompilations: task.isCompilations,
         videoName: task.videoName,
@@ -219,12 +220,13 @@ export default {
     },
 
     // 获取状态文本
-    getStatusText(status) {
+    getStatusText(status, task) {
+      if (status === 'converting' && task?.audioFormat && task.audioFormat !== 'mp3') return '封装高品质音频中';
       const statusMap = {
         'downloading': '下载中',
         'paused': '已暂停',
         'merging': '合并中',
-        'converting': '转换MP3中',  // 添加新状态
+        'converting': '转换MP3中',
         'completed': '已完成',
         'failed': '失败'
       };

@@ -7,6 +7,7 @@ import {
   downloadFile,
   getDownloadDir,
   mergeVideoAudio,
+  remuxAudio,
   setDownloadDir
 } from './downloadTools';
 import {
@@ -140,6 +141,7 @@ async function startDownload(item) {
     videoName,
     type
   } = item;
+  const audioFormat = ['flac', 'dolby'].includes(item.audioFormat) ? item.audioFormat : 'mp3';
   const downloadType = type || 'video';
   const isVideoCollection = isCompilations === true;
   const collectionName = videoName || '';
@@ -173,7 +175,8 @@ async function startDownload(item) {
 
       const tempAudioPath = path.resolve(downloadDir, `${safeTitle}.m4s`);
       cleanupAfterCompletion.push(tempAudioPath);
-      outputFilePath = path.resolve(downloadDir, `${safeTitle}.mp3`);
+      const audioExtension = audioFormat === 'flac' ? 'flac' : audioFormat === 'dolby' ? 'mka' : 'mp3';
+      outputFilePath = path.resolve(downloadDir, `${safeTitle}.${audioExtension}`);
       await addDownloadingTask({
         ...item,
         avid,
@@ -203,7 +206,8 @@ async function startDownload(item) {
 
       await updateDownloadingTask(avid, cid, { downloadPhase: 'converting', status: 'converting' });
       const convertProgress = createProgressUpdater(avid, cid, 60, 0.4);
-      await convertToMp3(tempAudioPath, outputFilePath, progress => {
+      const processAudio = audioFormat === 'mp3' ? convertToMp3 : remuxAudio;
+      await processAudio(tempAudioPath, outputFilePath, progress => {
         convertProgress.onProgress(progress);
       });
       await convertProgress.flush();
@@ -241,7 +245,7 @@ async function startDownload(item) {
       const videoFilePath = path.resolve(downloadDir, `${safeTitle}_video.m4s`);
       const audioFilePath = path.resolve(downloadDir, `${safeTitle}_audio.m4s`);
       cleanupAfterCompletion.push(videoFilePath, audioFilePath);
-      outputFilePath = path.resolve(downloadDir, `${safeTitle}.mp4`);
+      outputFilePath = path.resolve(downloadDir, `${safeTitle}.${audioFormat === 'mp3' ? 'mp4' : 'mkv'}`);
       await addDownloadingTask({
         ...item,
         avid,
@@ -287,7 +291,7 @@ async function startDownload(item) {
       const mergeProgress = createProgressUpdater(avid, cid, 80, 0.2);
       await mergeVideoAudio(videoFilePath, audioFilePath, outputFilePath, progress => {
         mergeProgress.onProgress(progress);
-      });
+      }, audioFormat);
       await mergeProgress.flush();
       completionData = {
         outputFilePath,

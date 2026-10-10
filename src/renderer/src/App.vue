@@ -18,6 +18,12 @@
             <el-icon><User /></el-icon>
           </el-menu-item>
         </el-menu>
+
+        <el-menu :default-active="activeMenu" router class="settings-menu">
+          <el-menu-item index="/settings" title="下载配置" aria-label="下载配置">
+            <el-icon><Setting /></el-icon>
+          </el-menu-item>
+        </el-menu>
       </aside>
 
       <main class="main-content">
@@ -30,7 +36,7 @@
 <script setup>
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import { Search, User, Download } from "@element-plus/icons-vue";
+import { Search, User, Download, Setting } from "@element-plus/icons-vue";
 import TitleBar from "./components/TitleBar.vue";
 
 const route = useRoute();
@@ -88,14 +94,19 @@ const activeMenu = computed(() => `/${route.path.split("/")[1]}`);
   letter-spacing: -2px;
 }
 
-.app-shell .app-menu {
+.app-shell .app-menu,
+.app-shell .settings-menu {
   width: 100%;
-  flex: 1;
   border-right: 0;
   background: transparent;
 }
 
-.app-shell .app-menu .el-menu-item {
+.app-shell .app-menu {
+  flex: 1;
+}
+
+.app-shell .app-menu .el-menu-item,
+.app-shell .settings-menu .el-menu-item {
   position: relative;
   display: flex;
   justify-content: center;
@@ -108,23 +119,27 @@ const activeMenu = computed(() => `/${route.path.split("/")[1]}`);
   transition: color 150ms ease, background-color 150ms ease;
 }
 
-.app-shell .app-menu .el-menu-item .el-icon {
+.app-shell .app-menu .el-menu-item .el-icon,
+.app-shell .settings-menu .el-menu-item .el-icon {
   margin: 0;
   color: #91a0af;
   font-size: 20px;
 }
 
-.app-shell .app-menu .el-menu-item:hover {
+.app-shell .app-menu .el-menu-item:hover,
+.app-shell .settings-menu .el-menu-item:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.07);
 }
 
-.app-shell .app-menu .el-menu-item.is-active {
+.app-shell .app-menu .el-menu-item.is-active,
+.app-shell .settings-menu .el-menu-item.is-active {
   color: #fff;
   background: rgba(251, 114, 153, 0.15);
 }
 
-.app-shell .app-menu .el-menu-item.is-active::before {
+.app-shell .app-menu .el-menu-item.is-active::before,
+.app-shell .settings-menu .el-menu-item.is-active::before {
   position: absolute;
   top: 12px;
   bottom: 12px;
@@ -135,7 +150,8 @@ const activeMenu = computed(() => `/${route.path.split("/")[1]}`);
   content: "";
 }
 
-.app-shell .app-menu .el-menu-item.is-active .el-icon {
+.app-shell .app-menu .el-menu-item.is-active .el-icon,
+.app-shell .settings-menu .el-menu-item.is-active .el-icon {
   color: #fb8cab;
 }
 
